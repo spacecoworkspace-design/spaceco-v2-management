@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://mhoustvvwmwfovocwwna.supabase.co;"/>
+<title>SPACECO Operations</title>
+<script src="js/vendor/supabase-js.umd.js"></script>
+</head>
+<body>
+<script src="js/supabase-client.js"></script>
+<script src="js/staff-auth.js"></script>
+<script>
+  (async () => {
+    const supabase = window.getSpacecoClient();
+    const guard = await requireStaffSession(supabase);
+    window.location.href = guard.redirect ? "sign-in.html" : "check-in.html";
+  })();
+</script>
+</body>
+</html>

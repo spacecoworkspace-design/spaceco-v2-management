@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://mhoustvvwmwfovocwwna.supabase.co;"/>
+<meta name="referrer" content="strict-origin-when-cross-origin"/>
+<title>SPACECO | Client Check-In</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@100..900&family=JetBrains+Mono:wght@100..900&display=swap" rel="stylesheet"/>
+<script src="js/vendor/supabase-js.umd.js"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          background: "#fbf9f8", surface: "#fbf9f8", "surface-container": "#efeded",
+          "on-surface-variant": "#444748", primary: "#000000", secondary: "#775a19",
+          "secondary-container": "#fed488", "on-secondary-container": "#785a1a",
+          "outline-variant": "#c4c7c7", error: "#ba1a1a",
+        },
+        fontFamily: { "body-lg": ["Hanken Grotesk"], "body-md": ["Hanken Grotesk"], "headline-lg": ["Hanken Grotesk"], "display-lg": ["Hanken Grotesk"], "headline-md": ["Hanken Grotesk"], "label-mono": ["JetBrains Mono"] },
+        fontSize: {
+          "label-mono": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "500" }],
+          "body-lg": ["18px", { lineHeight: "28px", fontWeight: "400" }],
+          "headline-lg": ["30px", { lineHeight: "38px", letterSpacing: "-0.01em", fontWeight: "600" }],
+          "headline-md": ["22px", { lineHeight: "30px", fontWeight: "600" }],
+          "display-lg": ["36px", { lineHeight: "44px", letterSpacing: "-0.02em", fontWeight: "700" }],
+        },
+        spacing: { "margin-mobile": "24px", "stack-md": "24px", "stack-lg": "48px" },
+        borderRadius: { DEFAULT: "0px" },
+      },
+    },
+  };
+</script>
+<style>
+  body { font-family: 'Hanken Grotesk', sans-serif; }
+  .bracket-tl { border-top: 2px solid #000; border-left: 2px solid #000; }
+  .bracket-tr { border-top: 2px solid #000; border-right: 2px solid #000; }
+  .bracket-bl { border-bottom: 2px solid #000; border-left: 2px solid #000; }
+  .bracket-br { border-bottom: 2px solid #000; border-right: 2px solid #000; }
+</style>
+</head>
+<body class="bg-background text-on-surface-variant font-body-md min-h-screen">
+
+<header class="flex justify-between items-center px-margin-mobile h-16 w-full bg-surface border-b border-outline-variant sticky top-0 z-40">
+  <span class="font-headline-md text-primary tracking-tighter">SPACECO — CHECK-IN</span>
+  <div class="flex items-center gap-4">
+    <span id="staff-name" class="font-label-mono text-label-mono uppercase"></span>
+    <button id="signout-btn" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Sign Out</button>
+  </div>
+</header>
+
+<div id="loading-state" class="py-24 text-center font-label-mono text-label-mono uppercase">Checking session...</div>
+
+<main class="hidden max-w-4xl mx-auto p-margin-mobile lg:p-12" id="main-content">
+  <div class="mb-stack-lg flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+    <div>
+      <span class="font-label-mono text-label-mono uppercase text-secondary mb-2 block">Reception</span>
+      <h1 class="font-display-lg text-primary">New Session</h1>
+    </div>
+    <div class="inline-flex p-1 bg-surface-container border border-outline-variant">
+      <button class="px-6 py-2 bg-primary text-white font-label-mono text-label-mono uppercase transition-all" id="lookupModeBtn">Client Lookup</button>
+      <button class="px-6 py-2 text-on-surface-variant font-label-mono text-label-mono uppercase hover:bg-surface-container" id="manualModeBtn">Manual Guest</button>
+    </div>
+  </div>
+
+  <!-- LOOKUP MODE -->
+  <section id="lookupView" class="relative mb-10">
+    <div class="absolute -top-4 -left-4 w-8 h-8 bracket-tl"></div>
+    <div class="absolute -top-4 -right-4 w-8 h-8 bracket-tr"></div>
+    <div class="absolute -bottom-4 -left-4 w-8 h-8 bracket-bl"></div>
+    <div class="absolute -bottom-4 -right-4 w-8 h-8 bracket-br"></div>
+    <div class="bg-surface border border-outline-variant p-8">
+      <div class="relative mb-4">
+        <input class="w-full bg-surface-container border-b-2 border-primary py-4 px-3 focus:ring-0 focus:outline-none font-label-mono text-body-lg uppercase placeholder:text-outline-variant" id="lookup-input" placeholder="CLIENT ID / NAME / PHONE" type="text"/>
+      </div>
+      <div id="lookup-results"></div>
+      <div id="verified-badge" class="hidden mt-4 p-4 bg-secondary-container text-on-secondary-container flex items-center justify-between">
+        <span class="font-label-mono text-label-mono uppercase font-bold" id="verified-text"></span>
+        <button id="clear-selection-btn" class="font-label-mono text-[11px] uppercase underline">Change</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- MANUAL GUEST MODE -->
+  <section id="manualView" class="hidden mb-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="space-y-2">
+      <label class="font-label-mono text-label-mono uppercase" for="guest-name">Full Name</label>
+      <input class="w-full border-b border-outline-variant focus:border-primary bg-transparent py-3 focus:ring-0 focus:outline-none font-body-lg" id="guest-name" type="text"/>
+    </div>
+    <div class="space-y-2">
+      <label class="font-label-mono text-label-mono uppercase" for="guest-phone">Phone Number</label>
+      <input class="w-full border-b border-outline-variant focus:border-primary bg-transparent py-3 focus:ring-0 focus:outline-none font-body-lg" id="guest-phone" type="tel"/>
+    </div>
+    <div class="space-y-2">
+      <label class="font-label-mono text-label-mono uppercase" for="guest-email">Email (optional)</label>
+      <input class="w-full border-b border-outline-variant focus:border-primary bg-transparent py-3 focus:ring-0 focus:outline-none font-body-lg" id="guest-email" type="email"/>
+    </div>
+  </section>
+
+  <!-- ROOM SELECTION -->
+  <section class="mb-10">
+    <h2 class="font-headline-md mb-6">Select Room</h2>
+    <div id="room-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
+  </section>
+
+  <p id="form-error" class="text-error mb-4 hidden"></p>
+  <p id="form-success" class="text-secondary mb-4 hidden font-label-mono uppercase"></p>
+
+  <button id="start-session-btn" class="w-full bg-secondary text-white py-6 font-headline-md font-bold uppercase tracking-widest hover:opacity-90 active:scale-[0.99] transition-all">
+    Start Session
+  </button>
+</main>
+
+<div id="error-state" class="hidden py-24 text-center">
+  <p class="text-error" id="error-text"></p>
+  <a href="sign-in.html" class="font-label-mono text-label-mono text-primary uppercase underline mt-4 inline-block">Sign In</a>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script src="js/staff-auth.js"></script>
+<script src="js/check-in.js"></script>
+<script>
+  const supabase = window.getSpacecoClient();
+  let selectedClient = null;
+  let selectedRoom = null;
+  let currentStaff = null;
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function setMode(mode) {
+    document.getElementById("lookupView").classList.toggle("hidden", mode !== "lookup");
+    document.getElementById("manualView").classList.toggle("hidden", mode !== "manual");
+    document.getElementById("lookupModeBtn").classList.toggle("bg-primary", mode === "lookup");
+    document.getElementById("lookupModeBtn").classList.toggle("text-white", mode === "lookup");
+    document.getElementById("manualModeBtn").classList.toggle("bg-primary", mode === "manual");
+    document.getElementById("manualModeBtn").classList.toggle("text-white", mode === "manual");
+    if (mode === "manual") selectedClient = null;
+  }
+
+  document.getElementById("lookupModeBtn").addEventListener("click", () => setMode("lookup"));
+  document.getElementById("manualModeBtn").addEventListener("click", () => setMode("manual"));
+
+  function renderRoomGrid() {
+    const grid = document.getElementById("room-grid");
+    grid.innerHTML = "";
+    ROOMS.forEach(r => {
+      const card = el("div", "cursor-pointer border border-outline-variant p-6 hover:border-primary transition-all bg-surface");
+      card.appendChild(el("h4", "font-body-lg font-bold", r.label));
+      card.dataset.roomKey = r.key;
+      card.addEventListener("click", () => {
+        document.querySelectorAll("#room-grid > div").forEach(c => c.classList.remove("border-primary", "bg-secondary-container"));
+        card.classList.add("border-primary", "bg-secondary-container");
+        selectedRoom = r.key;
+      });
+      grid.appendChild(card);
+    });
+  }
+
+  let lookupTimer = null;
+  document.getElementById("lookup-input").addEventListener("input", (e) => {
+    clearTimeout(lookupTimer);
+    const q = e.target.value;
+    lookupTimer = setTimeout(async () => {
+      const resultsEl = document.getElementById("lookup-results");
+      resultsEl.innerHTML = "";
+      if (!q.trim()) return;
+      const results = await lookupClient(supabase, q);
+      results.forEach(c => {
+        const row = el("div", "flex items-center justify-between py-3 border-b border-outline-variant cursor-pointer hover:bg-surface-container px-2");
+        const left = el("div");
+        left.appendChild(el("p", "font-body-lg font-bold", c.name));
+        left.appendChild(el("p", "font-label-mono text-[11px] text-on-surface-variant", `#${c.id} — ${c.phone || "no phone"}`));
+        row.appendChild(left);
+        row.addEventListener("click", () => selectClient(c));
+        resultsEl.appendChild(row);
+      });
+    }, 250);
+  });
+
+  function selectClient(c) {
+    selectedClient = c;
+    document.getElementById("lookup-input").value = "";
+    document.getElementById("lookup-results").innerHTML = "";
+    document.getElementById("verified-text").textContent = `✅ Verified Client — ${c.name}, #${c.id}`;
+    document.getElementById("verified-badge").classList.remove("hidden");
+  }
+
+  document.getElementById("clear-selection-btn").addEventListener("click", () => {
+    selectedClient = null;
+    document.getElementById("verified-badge").classList.add("hidden");
+  });
+
+  document.getElementById("start-session-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("form-error");
+    const okEl = document.getElementById("form-success");
+    errEl.classList.add("hidden");
+    okEl.classList.add("hidden");
+
+    if (!selectedRoom) {
+      errEl.textContent = "Select a room first.";
+      errEl.classList.remove("hidden");
+      return;
+    }
+
+    const isManualMode = !document.getElementById("manualView").classList.contains("hidden");
+    let payload = { room: selectedRoom, cashier: currentStaff };
+
+    if (isManualMode) {
+      const name = document.getElementById("guest-name").value.trim();
+      const phone = document.getElementById("guest-phone").value.trim();
+      if (!name || !phone) {
+        errEl.textContent = "Guest name and phone are required.";
+        errEl.classList.remove("hidden");
+        return;
+      }
+      payload.guestName = name;
+      payload.guestPhone = phone;
+      payload.guestEmail = document.getElementById("guest-email").value.trim();
+    } else {
+      if (!selectedClient) {
+        errEl.textContent = "Look up and select a client, or switch to Manual Guest.";
+        errEl.classList.remove("hidden");
+        return;
+      }
+      payload.clientId = selectedClient.id;
+    }
+
+    const result = await submitCheckIn(supabase, payload);
+    if (result.error) {
+      errEl.textContent = result.error;
+      errEl.classList.remove("hidden");
+      return;
+    }
+
+    okEl.textContent = `Checked in — session #${result.checkInId}`;
+    okEl.classList.remove("hidden");
+    selectedClient = null;
+    selectedRoom = null;
+    document.getElementById("verified-badge").classList.add("hidden");
+    document.getElementById("guest-name").value = "";
+    document.getElementById("guest-phone").value = "";
+    document.getElementById("guest-email").value = "";
+    document.querySelectorAll("#room-grid > div").forEach(c => c.classList.remove("border-primary", "bg-secondary-container"));
+  });
+
+  document.getElementById("signout-btn").addEventListener("click", async () => {
+    await supabase.auth.signOut();
+    window.location.href = "sign-in.html";
+  });
+
+  // Never hang silently on this screen: race the session guard against a timeout. If startup
+  // is unexpectedly slow or stuck for any reason, show a retry option instead of leaving staff
+  // staring at "Checking session..." forever.
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+    ]);
+  }
+
+  async function startCheckInPage() {
+    try {
+      const guard = await withTimeout(requireStaffSession(supabase), 8000);
+      if (guard.redirect) {
+        window.location.href = "sign-in.html";
+        return;
+      }
+      currentStaff = guard.staff;
+      document.getElementById("staff-name").textContent = guard.staff.name;
+      renderRoomGrid();
+      document.getElementById("loading-state").classList.add("hidden");
+      document.getElementById("main-content").classList.remove("hidden");
+    } catch (e) {
+      document.getElementById("loading-state").innerHTML = "";
+      const msg = document.createElement("p");
+      msg.className = "mb-4";
+      msg.textContent = "Taking longer than expected to load your session.";
+      const retryBtn = document.createElement("button");
+      retryBtn.className = "font-label-mono text-label-mono text-primary uppercase underline";
+      retryBtn.textContent = "Retry";
+      retryBtn.addEventListener("click", () => window.location.reload());
+      document.getElementById("loading-state").appendChild(msg);
+      document.getElementById("loading-state").appendChild(retryBtn);
+    }
+  }
+
+  startCheckInPage();
+</script>
+</body>
+</html>

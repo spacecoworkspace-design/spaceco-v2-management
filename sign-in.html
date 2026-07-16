@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://mhoustvvwmwfovocwwna.supabase.co;"/>
+<meta name="referrer" content="strict-origin-when-cross-origin"/>
+<title>SpaceCo Operations Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@100..900&family=JetBrains+Mono:wght@100..900&display=swap" rel="stylesheet"/>
+<script src="js/vendor/supabase-js.umd.js"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          surface: "#fbf9f8", background: "#fbf9f8", "on-surface-variant": "#444748",
+          primary: "#000000", secondary: "#775a19", "outline-variant": "#c4c7c7", error: "#ba1a1a",
+        },
+        fontFamily: { "body-md": ["Hanken Grotesk"], "label-mono": ["JetBrains Mono"], "display-lg": ["Hanken Grotesk"], "headline-md": ["Hanken Grotesk"] },
+        fontSize: {
+          "label-mono": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "500" }],
+          "display-lg": ["40px", { lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "700" }],
+          "headline-md": ["22px", { lineHeight: "30px", fontWeight: "600" }],
+        },
+        spacing: { "margin-mobile": "24px", "stack-md": "24px", "stack-lg": "48px" },
+        borderRadius: { DEFAULT: "0px" },
+      },
+    },
+  };
+</script>
+<style>
+  body { font-family: 'Hanken Grotesk', sans-serif; }
+  .bracket-tl { border-top: 2px solid black; border-left: 2px solid black; }
+  .bracket-tr { border-top: 2px solid black; border-right: 2px solid black; }
+  .bracket-bl { border-bottom: 2px solid black; border-left: 2px solid black; }
+  .bracket-br { border-bottom: 2px solid black; border-right: 2px solid black; }
+</style>
+</head>
+<body class="bg-surface text-on-surface-variant font-body-md min-h-screen flex flex-col">
+
+<header class="w-full border-b border-outline-variant flex items-center px-margin-mobile h-16 bg-surface">
+  <span class="font-headline-md text-primary tracking-tighter">SPACECO</span>
+</header>
+
+<main class="flex-grow flex items-center justify-center px-margin-mobile">
+  <div class="relative w-full max-w-md p-stack-lg">
+    <div class="absolute top-0 left-0 w-8 h-8 bracket-tl"></div>
+    <div class="absolute top-0 right-0 w-8 h-8 bracket-tr"></div>
+    <div class="absolute bottom-0 left-0 w-8 h-8 bracket-bl"></div>
+    <div class="absolute bottom-0 right-0 w-8 h-8 bracket-br"></div>
+
+    <div class="space-y-stack-lg p-6">
+      <div class="text-center space-y-1">
+        <p class="font-label-mono text-label-mono uppercase tracking-[0.2em]">Security Protocol 4.0</p>
+        <h1 class="font-display-lg text-primary uppercase tracking-tight" style="font-size:32px;">Operations Login</h1>
+      </div>
+
+      <!-- Step 1: password -->
+      <form class="space-y-stack-md" id="password-form">
+        <div class="space-y-1">
+          <label class="font-label-mono text-label-mono uppercase" for="email">Email</label>
+          <input class="w-full bg-transparent border-0 border-b border-primary p-3 focus:ring-0 focus:border-b-2 transition-all font-body-md" id="email" required type="email"/>
+        </div>
+        <div class="space-y-1">
+          <label class="font-label-mono text-label-mono uppercase" for="password">Password</label>
+          <input class="w-full bg-transparent border-0 border-b border-primary p-3 focus:ring-0 focus:border-b-2 transition-all font-body-md" id="password" required type="password"/>
+        </div>
+        <p id="password-error" class="text-[13px] text-error hidden"></p>
+        <button class="w-full bg-primary text-white py-4 font-label-mono text-[13px] uppercase tracking-[0.1em] hover:opacity-90 active:scale-[0.98] transition-all" id="password-submit" type="submit">
+          Access System
+        </button>
+      </form>
+
+      <!-- Step 2a: TOTP enrollment (first login only) -->
+      <div class="hidden space-y-stack-md text-center" id="enroll-view">
+        <h2 class="font-headline-md text-primary">Set Up Your Authenticator</h2>
+        <p class="text-[13px]">Scan this code with Google Authenticator, Authy, or similar, then enter the 6-digit code it shows.</p>
+        <div id="qr-container" class="flex justify-center"></div>
+        <input class="w-full text-center bg-transparent border-0 border-b border-primary p-3 focus:ring-0 font-label-mono text-headline-md tracking-widest" id="enroll-code" maxlength="6" placeholder="000000" type="text"/>
+        <p id="enroll-error" class="text-[13px] text-error hidden"></p>
+        <button class="w-full bg-primary text-white py-4 font-label-mono text-[13px] uppercase tracking-[0.1em] hover:opacity-90 transition-all" id="enroll-submit">
+          Confirm & Activate
+        </button>
+      </div>
+
+      <!-- Step 2b: TOTP challenge (subsequent logins) -->
+      <div class="hidden space-y-stack-md text-center" id="challenge-view">
+        <h2 class="font-headline-md text-primary">Enter Security Code</h2>
+        <p class="text-[13px]">Enter the 6-digit code from your authenticator app.</p>
+        <input class="w-full text-center bg-transparent border-0 border-b border-primary p-3 focus:ring-0 font-label-mono text-headline-md tracking-widest" id="challenge-code" maxlength="6" placeholder="000000" type="text"/>
+        <p id="challenge-error" class="text-[13px] text-error hidden"></p>
+        <button class="w-full bg-primary text-white py-4 font-label-mono text-[13px] uppercase tracking-[0.1em] hover:opacity-90 transition-all" id="challenge-submit">
+          Verify
+        </button>
+      </div>
+
+      <p class="text-center font-label-mono text-label-mono uppercase opacity-60">Internal use only</p>
+    </div>
+  </div>
+</main>
+
+<footer class="p-margin-mobile border-t border-outline-variant text-center opacity-50">
+  <p class="font-label-mono text-label-mono">© SPACECO MANAGEMENT SYSTEMS 2026</p>
+</footer>
+
+<script src="js/supabase-client.js"></script>
+<script src="js/staff-auth.js"></script>
+<script>
+  const supabase = window.getSpacecoClient();
+  let pendingFactorId = null;
+
+  function showView(id) {
+    ["password-form", "enroll-view", "challenge-view"].forEach(v => {
+      document.getElementById(v).classList.toggle("hidden", v !== id);
+    });
+  }
+
+  document.getElementById("password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById("password-error");
+    errEl.classList.add("hidden");
+    const btn = document.getElementById("password-submit");
+    btn.disabled = true;
+    btn.textContent = "Validating...";
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const result = await signInStaff(supabase, { email, password });
+
+    btn.disabled = false;
+    btn.textContent = "Access System";
+
+    if (result.error) {
+      errEl.textContent = result.error;
+      errEl.classList.remove("hidden");
+      return;
+    }
+
+    if (result.status === "in") {
+      window.location.href = "check-in.html";
+      return;
+    }
+
+    if (result.status === "needs_challenge") {
+      showView("challenge-view");
+      return;
+    }
+
+    // needs_enroll
+    const enroll = await enrollTotp(supabase);
+    if (enroll.error) {
+      errEl.textContent = enroll.error;
+      errEl.classList.remove("hidden");
+      return;
+    }
+    pendingFactorId = enroll.factorId;
+    document.getElementById("qr-container").innerHTML = enroll.qrSvg;
+    showView("enroll-view");
+  });
+
+  document.getElementById("enroll-submit").addEventListener("click", async () => {
+    const errEl = document.getElementById("enroll-error");
+    errEl.classList.add("hidden");
+    const code = document.getElementById("enroll-code").value.trim();
+    const result = await verifyTotpCode(supabase, pendingFactorId, code);
+    if (result.error) {
+      errEl.textContent = result.error;
+      errEl.classList.remove("hidden");
+      return;
+    }
+    window.location.href = "check-in.html";
+  });
+
+  document.getElementById("challenge-submit").addEventListener("click", async () => {
+    const errEl = document.getElementById("challenge-error");
+    errEl.classList.add("hidden");
+    const code = document.getElementById("challenge-code").value.trim();
+    const { data: factors } = await supabase.auth.mfa.listFactors();
+    const factorId = factors.totp[0]?.id;
+    const result = await verifyTotpCode(supabase, factorId, code);
+    if (result.error) {
+      errEl.textContent = result.error;
+      errEl.classList.remove("hidden");
+      return;
+    }
+    window.location.href = "check-in.html";
+  });
+</script>
+</body>
+</html>
