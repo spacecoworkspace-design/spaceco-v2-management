@@ -107,7 +107,7 @@
 <script src="js/supabase-client.js"></script>
 <script src="js/staff-auth.js"></script>
 <script>
-  const supabase = window.getSpacecoClient();
+  const supabaseClient = window.getSpacecoClient();
   let pendingFactorId = null;
 
   function showView(id) {
@@ -126,7 +126,7 @@
 
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
-    const result = await signInStaff(supabase, { email, password });
+    const result = await signInStaff(supabaseClient, { email, password });
 
     btn.disabled = false;
     btn.textContent = "Access System";
@@ -148,7 +148,7 @@
     }
 
     // needs_enroll
-    const enroll = await enrollTotp(supabase);
+    const enroll = await enrollTotp(supabaseClient);
     if (enroll.error) {
       errEl.textContent = enroll.error;
       errEl.classList.remove("hidden");
@@ -163,7 +163,7 @@
     const errEl = document.getElementById("enroll-error");
     errEl.classList.add("hidden");
     const code = document.getElementById("enroll-code").value.trim();
-    const result = await verifyTotpCode(supabase, pendingFactorId, code);
+    const result = await verifyTotpCode(supabaseClient, pendingFactorId, code);
     if (result.error) {
       errEl.textContent = result.error;
       errEl.classList.remove("hidden");
@@ -176,9 +176,9 @@
     const errEl = document.getElementById("challenge-error");
     errEl.classList.add("hidden");
     const code = document.getElementById("challenge-code").value.trim();
-    const { data: factors } = await supabase.auth.mfa.listFactors();
+    const { data: factors } = await supabaseClient.auth.mfa.listFactors();
     const factorId = factors.totp[0]?.id;
-    const result = await verifyTotpCode(supabase, factorId, code);
+    const result = await verifyTotpCode(supabaseClient, factorId, code);
     if (result.error) {
       errEl.textContent = result.error;
       errEl.classList.remove("hidden");

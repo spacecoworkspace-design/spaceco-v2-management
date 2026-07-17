@@ -122,7 +122,7 @@
 <script src="js/staff-auth.js"></script>
 <script src="js/check-in.js"></script>
 <script>
-  const supabase = window.getSpacecoClient();
+  const supabaseClient = window.getSpacecoClient();
   let selectedClient = null;
   let selectedRoom = null;
   let currentStaff = null;
@@ -171,7 +171,7 @@
       const resultsEl = document.getElementById("lookup-results");
       resultsEl.innerHTML = "";
       if (!q.trim()) return;
-      const results = await lookupClient(supabase, q);
+      const results = await lookupClient(supabaseClient, q);
       results.forEach(c => {
         const row = el("div", "flex items-center justify-between py-3 border-b border-outline-variant cursor-pointer hover:bg-surface-container px-2");
         const left = el("div");
@@ -232,7 +232,7 @@
       payload.clientId = selectedClient.id;
     }
 
-    const result = await submitCheckIn(supabase, payload);
+    const result = await submitCheckIn(supabaseClient, payload);
     if (result.error) {
       errEl.textContent = result.error;
       errEl.classList.remove("hidden");
@@ -251,7 +251,7 @@
   });
 
   document.getElementById("signout-btn").addEventListener("click", async () => {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     window.location.href = "sign-in.html";
   });
 
@@ -267,7 +267,7 @@
 
   async function startCheckInPage() {
     try {
-      const guard = await withTimeout(requireStaffSession(supabase), 8000);
+      const guard = await withTimeout(requireStaffSession(supabaseClient), 8000);
       if (guard.redirect) {
         window.location.href = "sign-in.html";
         return;
