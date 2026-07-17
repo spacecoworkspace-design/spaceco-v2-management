@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://mhoustvvwmwfovocwwna.supabase.co;"/>
+<meta name="referrer" content="strict-origin-when-cross-origin"/>
+<title>SPACECO | Claim Requests</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@100..900&family=JetBrains+Mono:wght@100..900&display=swap" rel="stylesheet"/>
+<script src="js/vendor/supabase-js.umd.js"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          background: "#fbf9f8", surface: "#fbf9f8", "surface-container": "#efeded",
+          "on-surface-variant": "#444748", primary: "#000000", secondary: "#775a19",
+          "secondary-container": "#fed488", "on-secondary-container": "#785a1a",
+          "outline-variant": "#c4c7c7", error: "#ba1a1a",
+        },
+        fontFamily: { "body-lg": ["Hanken Grotesk"], "body-md": ["Hanken Grotesk"], "headline-lg": ["Hanken Grotesk"], "display-lg": ["Hanken Grotesk"], "headline-md": ["Hanken Grotesk"], "label-mono": ["JetBrains Mono"] },
+        fontSize: {
+          "label-mono": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "500" }],
+          "body-lg": ["18px", { lineHeight: "28px", fontWeight: "400" }],
+          "headline-lg": ["30px", { lineHeight: "38px", letterSpacing: "-0.01em", fontWeight: "600" }],
+          "headline-md": ["22px", { lineHeight: "30px", fontWeight: "600" }],
+          "display-lg": ["36px", { lineHeight: "44px", letterSpacing: "-0.02em", fontWeight: "700" }],
+        },
+        spacing: { "margin-mobile": "24px", "stack-md": "24px", "stack-lg": "48px" },
+        borderRadius: { DEFAULT: "0px" },
+      },
+    },
+  };
+</script>
+<style>
+  body { font-family: 'Hanken Grotesk', sans-serif; }
+  .bracket-tl { border-top: 2px solid #000; border-left: 2px solid #000; }
+  .bracket-tr { border-top: 2px solid #000; border-right: 2px solid #000; }
+  .bracket-bl { border-bottom: 2px solid #000; border-left: 2px solid #000; }
+  .bracket-br { border-bottom: 2px solid #000; border-right: 2px solid #000; }
+</style>
+</head>
+<body class="bg-background text-on-surface-variant font-body-md min-h-screen">
+
+<header class="flex justify-between items-center px-margin-mobile h-16 w-full bg-surface border-b border-outline-variant sticky top-0 z-40">
+  <div class="flex items-center gap-8">
+    <span class="font-headline-md text-primary tracking-tighter">SPACECO — CLAIM REQUESTS</span>
+    <a href="check-in.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Check-In</a>
+  </div>
+  <div class="flex items-center gap-4">
+    <span id="staff-name" class="font-label-mono text-label-mono uppercase"></span>
+    <button id="signout-btn" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Sign Out</button>
+  </div>
+</header>
+
+<div id="loading-state" class="py-24 text-center font-label-mono text-label-mono uppercase">Checking session...</div>
+
+<main class="hidden max-w-4xl mx-auto p-margin-mobile lg:p-12" id="main-content">
+  <div class="mb-stack-lg">
+    <span class="font-label-mono text-label-mono uppercase text-secondary mb-2 block">Verification Desk</span>
+    <h1 class="font-display-lg text-primary">Claim Requests</h1>
+    <p class="mt-2">Confirm or reject matches between new signups and existing records. Nothing merges until you confirm it.</p>
+  </div>
+
+  <p id="empty-state" class="hidden font-label-mono text-label-mono uppercase text-on-surface-variant py-12 text-center">No pending claim requests.</p>
+
+  <div id="claims-list" class="space-y-6"></div>
+</main>
+
+<div id="error-state" class="hidden py-24 text-center">
+  <p class="text-error" id="error-text"></p>
+  <a href="sign-in.html" class="font-label-mono text-label-mono text-primary uppercase underline mt-4 inline-block">Sign In</a>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script src="js/staff-auth.js"></script>
+<script src="js/claims.js"></script>
+<script>
+  const supabaseClient = window.getSpacecoClient();
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  const MATCH_TYPE_LABEL = {
+    client_duplicate: "Existing Client",
+    check_in: "Past Check-In",
+    reservation: "Past Reservation",
+  };
+
+  function describeMatch(claim) {
+    if (claim.match_type === "client_duplicate" && claim.duplicateClient) {
+      return `Client #${claim.duplicateClient.id} — ${claim.duplicateClient.name}${claim.duplicateClient.phone ? ", " + claim.duplicateClient.phone : ""}`;
+    }
+    if (claim.match_type === "check_in" && claim.checkIn) {
+      return `${claim.checkIn.visit_date} — ${claim.checkIn.room || "unknown room"}`;
+    }
+    if (claim.match_type === "reservation" && claim.reservation) {
+      return `${claim.reservation.reservation_date} — ${claim.reservation.room || "unknown room"}`;
+    }
+    return "Match record no longer available";
+  }
+
+  function renderClaim(claim) {
+    const card = el("div", "relative bg-surface border border-outline-variant p-6");
+    card.dataset.claimId = claim.id;
+
+    const badgeColor = claim.confidence === "high" ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container text-on-surface-variant";
+    const header = el("div", "flex items-start justify-between gap-4 mb-4");
+    const left = el("div");
+    left.appendChild(el("span", "font-label-mono text-label-mono uppercase text-secondary block mb-1", MATCH_TYPE_LABEL[claim.match_type] || claim.match_type));
+    left.appendChild(el("h3", "font-headline-md text-primary", claim.client ? claim.client.name : "(signup record missing)"));
+    if (claim.client) {
+      left.appendChild(el("p", "font-label-mono text-[11px] text-on-surface-variant mt-1", `New signup — #${claim.client.id}${claim.client.phone ? ", " + claim.client.phone : ""}${claim.client.email ? ", " + claim.client.email : ""}`));
+    }
+    header.appendChild(left);
+    header.appendChild(el("span", `font-label-mono text-[11px] uppercase px-3 py-1 h-fit ${badgeColor}`, claim.confidence + " confidence"));
+    card.appendChild(header);
+
+    card.appendChild(el("p", "font-label-mono text-[11px] uppercase text-on-surface-variant mb-1", "Matched against"));
+    card.appendChild(el("p", "font-body-lg mb-6", describeMatch(claim)));
+
+    const actions = el("div", "flex gap-4");
+    const confirmBtn = el("button", "flex-1 bg-primary text-white py-3 font-label-mono text-label-mono uppercase hover:opacity-90", "Confirm");
+    const rejectBtn = el("button", "flex-1 border border-outline-variant text-on-surface-variant py-3 font-label-mono text-label-mono uppercase hover:border-primary hover:text-primary", "Reject");
+
+    confirmBtn.addEventListener("click", async () => {
+      confirmBtn.disabled = true;
+      rejectBtn.disabled = true;
+      const result = await confirmClaim(supabaseClient, claim.id);
+      if (result.error) {
+        alert(result.error);
+        confirmBtn.disabled = false;
+        rejectBtn.disabled = false;
+        return;
+      }
+      card.remove();
+      checkEmpty();
+    });
+
+    rejectBtn.addEventListener("click", async () => {
+      confirmBtn.disabled = true;
+      rejectBtn.disabled = true;
+      const result = await rejectClaim(supabaseClient, claim.id);
+      if (result.error) {
+        alert(result.error);
+        confirmBtn.disabled = false;
+        rejectBtn.disabled = false;
+        return;
+      }
+      card.remove();
+      checkEmpty();
+    });
+
+    actions.appendChild(confirmBtn);
+    actions.appendChild(rejectBtn);
+    card.appendChild(actions);
+
+    return card;
+  }
+
+  function checkEmpty() {
+    const hasCards = document.getElementById("claims-list").children.length > 0;
+    document.getElementById("empty-state").classList.toggle("hidden", hasCards);
+  }
+
+  async function loadClaims() {
+    const result = await fetchPendingClaims(supabaseClient);
+    const list = document.getElementById("claims-list");
+    list.innerHTML = "";
+    if (result.error) {
+      document.getElementById("empty-state").textContent = "Failed to load: " + result.error;
+      document.getElementById("empty-state").classList.remove("hidden");
+      return;
+    }
+    result.claims.forEach(claim => list.appendChild(renderClaim(claim)));
+    checkEmpty();
+  }
+
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+    ]);
+  }
+
+  async function startClaimsPage() {
+    try {
+      const guard = await withTimeout(requireStaffSession(supabaseClient), 8000);
+      if (guard.redirect) {
+        window.location.href = "sign-in.html";
+        return;
+      }
+      document.getElementById("staff-name").textContent = guard.staff.name;
+      document.getElementById("loading-state").classList.add("hidden");
+      document.getElementById("main-content").classList.remove("hidden");
+      await loadClaims();
+    } catch (e) {
+      document.getElementById("loading-state").innerHTML = "";
+      const msg = document.createElement("p");
+      msg.className = "mb-4";
+      msg.textContent = "Taking longer than expected to load your session.";
+      const retryBtn = document.createElement("button");
+      retryBtn.className = "font-label-mono text-label-mono text-primary uppercase underline";
+      retryBtn.textContent = "Retry";
+      retryBtn.addEventListener("click", () => window.location.reload());
+      document.getElementById("loading-state").appendChild(msg);
+      document.getElementById("loading-state").appendChild(retryBtn);
+    }
+  }
+
+  document.getElementById("signout-btn").addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
+    window.location.href = "sign-in.html";
+  });
+
+  startClaimsPage();
+</script>
+</body>
+</html>
