@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://mhoustvvwmwfovocwwna.supabase.co;"/>
+<meta name="referrer" content="strict-origin-when-cross-origin"/>
+<title>SPACECO | Expenses</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@100..900&family=JetBrains+Mono:wght@100..900&display=swap" rel="stylesheet"/>
+<script src="js/vendor/supabase-js.umd.js"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          background: "#fbf9f8", surface: "#fbf9f8", "surface-container": "#efeded",
+          "on-surface-variant": "#444748", primary: "#000000", secondary: "#775a19",
+          "secondary-container": "#fed488", "on-secondary-container": "#785a1a",
+          "outline-variant": "#c4c7c7", error: "#ba1a1a",
+        },
+        fontFamily: { "body-lg": ["Hanken Grotesk"], "body-md": ["Hanken Grotesk"], "headline-lg": ["Hanken Grotesk"], "display-lg": ["Hanken Grotesk"], "headline-md": ["Hanken Grotesk"], "label-mono": ["JetBrains Mono"] },
+        fontSize: {
+          "label-mono": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "500" }],
+          "body-lg": ["18px", { lineHeight: "28px", fontWeight: "400" }],
+          "headline-lg": ["30px", { lineHeight: "38px", letterSpacing: "-0.01em", fontWeight: "600" }],
+          "headline-md": ["22px", { lineHeight: "30px", fontWeight: "600" }],
+          "display-lg": ["36px", { lineHeight: "44px", letterSpacing: "-0.02em", fontWeight: "700" }],
+        },
+        spacing: { "margin-mobile": "24px", "stack-md": "24px", "stack-lg": "48px" },
+        borderRadius: { DEFAULT: "0px" },
+      },
+    },
+  };
+</script>
+<style>
+  body { font-family: 'Hanken Grotesk', sans-serif; }
+</style>
+</head>
+<body class="bg-background text-on-surface-variant font-body-md min-h-screen">
+
+<header class="flex justify-between items-center px-margin-mobile h-16 w-full bg-surface border-b border-outline-variant sticky top-0 z-40">
+  <div class="flex items-center gap-8">
+    <span class="font-headline-md text-primary tracking-tighter">SPACECO — EXPENSES</span>
+    <a href="check-in.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Check-In</a>
+    <a href="claims.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Claim Requests</a>
+  </div>
+  <div class="flex items-center gap-4">
+    <span id="staff-name" class="font-label-mono text-label-mono uppercase"></span>
+    <button id="signout-btn" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Sign Out</button>
+  </div>
+</header>
+
+<div id="loading-state" class="py-24 text-center font-label-mono text-label-mono uppercase">Checking session...</div>
+
+<main class="hidden max-w-5xl mx-auto p-margin-mobile lg:p-12" id="main-content">
+  <div class="flex items-start justify-between mb-stack-lg">
+    <div>
+      <span class="font-label-mono text-label-mono uppercase text-secondary mb-2 block">Track all workspace expenses</span>
+      <h1 class="font-display-lg text-primary">Expenses</h1>
+    </div>
+    <button id="add-expense-btn" class="bg-primary text-white py-3 px-6 font-label-mono text-label-mono uppercase hover:opacity-90">+ Add Expense</button>
+  </div>
+
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-stack-lg">
+    <div class="bg-surface-container p-4">
+      <p class="font-label-mono text-[11px] uppercase text-on-surface-variant mb-1">Total This Month</p>
+      <p id="stat-total" class="font-headline-md text-primary">—</p>
+    </div>
+    <div class="bg-surface-container p-4">
+      <p class="font-label-mono text-[11px] uppercase text-on-surface-variant mb-1">Paid Cash</p>
+      <p id="stat-cash" class="font-headline-md text-primary">—</p>
+    </div>
+    <div class="bg-surface-container p-4">
+      <p class="font-label-mono text-[11px] uppercase text-on-surface-variant mb-1">Paid Instapay</p>
+      <p id="stat-instapay" class="font-headline-md text-primary">—</p>
+    </div>
+    <div class="bg-secondary-container p-4">
+      <p class="font-label-mono text-[11px] uppercase text-on-secondary-container mb-1">Net Revenue</p>
+      <p id="stat-net" class="font-headline-md text-on-secondary-container">—</p>
+    </div>
+  </div>
+
+  <div id="category-breakdown" class="mb-stack-lg"></div>
+
+  <div id="add-form" class="hidden bg-surface border border-outline-variant p-6 mb-stack-lg space-y-4">
+    <h3 class="font-headline-md text-primary mb-2">Add Expense</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Description</label>
+        <input id="f-description" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none" type="text"/>
+      </div>
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Category</label>
+        <select id="f-category" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none"></select>
+      </div>
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Amount (LE)</label>
+        <input id="f-amount" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none" type="number" min="0" step="0.01"/>
+      </div>
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Paid From</label>
+        <select id="f-paid-from" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none">
+          <option value="cash">Cash</option>
+          <option value="instapay">Instapay</option>
+        </select>
+      </div>
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Date</label>
+        <input id="f-date" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none" type="date"/>
+      </div>
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Note (optional)</label>
+        <input id="f-notes" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none" type="text"/>
+      </div>
+    </div>
+    <p id="form-error" class="text-error hidden"></p>
+    <div class="flex gap-4">
+      <button id="save-expense-btn" class="bg-primary text-white py-3 px-6 font-label-mono text-label-mono uppercase hover:opacity-90">Save Expense</button>
+      <button id="cancel-expense-btn" class="border border-outline-variant py-3 px-6 font-label-mono text-label-mono uppercase hover:border-primary">Cancel</button>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-4 mb-4">
+    <label class="font-label-mono text-label-mono uppercase" for="category-filter">Filter</label>
+    <select id="category-filter" class="bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none">
+      <option value="all">All Categories</option>
+    </select>
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-left">
+      <thead>
+        <tr class="border-b border-outline-variant font-label-mono text-[11px] uppercase text-on-surface-variant">
+          <th class="py-2 pr-4">Date</th>
+          <th class="py-2 pr-4">Description</th>
+          <th class="py-2 pr-4">Category</th>
+          <th class="py-2 pr-4">Amount</th>
+          <th class="py-2 pr-4">Paid From</th>
+          <th class="py-2 pr-4">Note</th>
+          <th class="py-2 pr-4"></th>
+        </tr>
+      </thead>
+      <tbody id="expenses-tbody"></tbody>
+    </table>
+    <p id="empty-state" class="hidden font-label-mono text-label-mono uppercase text-on-surface-variant py-8 text-center">No expenses recorded.</p>
+  </div>
+</main>
+
+<div id="error-state" class="hidden py-24 text-center">
+  <p class="text-error" id="error-text"></p>
+  <a href="sign-in.html" class="font-label-mono text-label-mono text-primary uppercase underline mt-4 inline-block">Sign In</a>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script src="js/staff-auth.js"></script>
+<script src="js/expenses.js"></script>
+<script>
+  const supabaseClient = window.getSpacecoClient();
+
+  function fmtMoney(n) {
+    return Number(n || 0).toLocaleString() + " LE";
+  }
+
+  EXPENSE_CATEGORIES.forEach(c => {
+    document.getElementById("f-category").appendChild(new Option(c, c));
+    document.getElementById("category-filter").appendChild(new Option(c, c));
+  });
+  document.getElementById("f-date").value = new Date().toISOString().slice(0, 10);
+
+  async function refreshSummary() {
+    const result = await fetchExpensesSummary(supabaseClient);
+    if (result.error) return;
+    document.getElementById("stat-total").textContent = fmtMoney(result.totalExpenses);
+    document.getElementById("stat-cash").textContent = fmtMoney(result.paidCash);
+    document.getElementById("stat-instapay").textContent = fmtMoney(result.paidInstapay);
+    document.getElementById("stat-net").textContent = fmtMoney(result.netRevenue);
+
+    const breakdown = document.getElementById("category-breakdown");
+    breakdown.innerHTML = "";
+    const entries = Object.entries(result.byCategory);
+    if (entries.length) {
+      const title = document.createElement("p");
+      title.className = "font-label-mono text-[11px] uppercase text-on-surface-variant mb-2";
+      title.textContent = "By Category";
+      breakdown.appendChild(title);
+      const row = document.createElement("div");
+      row.className = "flex flex-wrap gap-3";
+      entries.forEach(([cat, amt]) => {
+        const chip = document.createElement("span");
+        chip.className = "bg-surface-container px-3 py-2 font-label-mono text-[11px] uppercase";
+        chip.textContent = `${cat}: ${fmtMoney(amt)}`;
+        row.appendChild(chip);
+      });
+      breakdown.appendChild(row);
+    }
+  }
+
+  async function refreshTable() {
+    const category = document.getElementById("category-filter").value;
+    const result = await fetchExpenses(supabaseClient, category);
+    const tbody = document.getElementById("expenses-tbody");
+    tbody.innerHTML = "";
+    if (result.error || !result.expenses.length) {
+      document.getElementById("empty-state").classList.remove("hidden");
+      return;
+    }
+    document.getElementById("empty-state").classList.add("hidden");
+    result.expenses.forEach(e => {
+      const tr = document.createElement("tr");
+      tr.className = "border-b border-outline-variant";
+      tr.innerHTML = `
+        <td class="py-2 pr-4">${e.expense_date}</td>
+        <td class="py-2 pr-4">${e.description || "-"}</td>
+        <td class="py-2 pr-4">${e.category || "-"}</td>
+        <td class="py-2 pr-4">${fmtMoney(e.amount)}</td>
+        <td class="py-2 pr-4 uppercase">${e.payment_method || "-"}</td>
+        <td class="py-2 pr-4">${e.notes || "-"}</td>
+        <td class="py-2 pr-4"></td>
+      `;
+      const delBtn = document.createElement("button");
+      delBtn.className = "font-label-mono text-[11px] uppercase text-error hover:underline";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", async () => {
+        if (!confirm("Delete this expense?")) return;
+        const result = await deleteExpense(supabaseClient, e.id);
+        if (result.error) { alert(result.error); return; }
+        refreshTable();
+        refreshSummary();
+      });
+      tr.lastElementChild.appendChild(delBtn);
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById("add-expense-btn").addEventListener("click", () => {
+    document.getElementById("add-form").classList.remove("hidden");
+  });
+  document.getElementById("cancel-expense-btn").addEventListener("click", () => {
+    document.getElementById("add-form").classList.add("hidden");
+  });
+  document.getElementById("category-filter").addEventListener("change", refreshTable);
+
+  document.getElementById("save-expense-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("form-error");
+    errEl.classList.add("hidden");
+
+    const description = document.getElementById("f-description").value.trim();
+    const category = document.getElementById("f-category").value;
+    const amount = Number(document.getElementById("f-amount").value);
+    const paidFrom = document.getElementById("f-paid-from").value;
+    const expenseDate = document.getElementById("f-date").value;
+    const notes = document.getElementById("f-notes").value.trim();
+
+    if (!description || !amount || amount <= 0 || !expenseDate) {
+      errEl.textContent = "Description, a positive amount, and a date are required.";
+      errEl.classList.remove("hidden");
+      return;
+    }
+
+    const result = await addExpense(supabaseClient, { description, category, amount, paidFrom, notes, expenseDate });
+    if (result.error) {
+      errEl.textContent = result.error;
+      errEl.classList.remove("hidden");
+      return;
+    }
+
+    document.getElementById("f-description").value = "";
+    document.getElementById("f-amount").value = "";
+    document.getElementById("f-notes").value = "";
+    document.getElementById("add-form").classList.add("hidden");
+    refreshTable();
+    refreshSummary();
+  });
+
+  document.getElementById("signout-btn").addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
+    window.location.href = "sign-in.html";
+  });
+
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+    ]);
+  }
+
+  async function startExpensesPage() {
+    try {
+      const guard = await withTimeout(requireStaffSession(supabaseClient), 8000);
+      if (guard.redirect) {
+        window.location.href = "sign-in.html";
+        return;
+      }
+      document.getElementById("staff-name").textContent = guard.staff.name;
+      document.getElementById("loading-state").classList.add("hidden");
+      document.getElementById("main-content").classList.remove("hidden");
+      await Promise.all([refreshSummary(), refreshTable()]);
+    } catch (e) {
+      document.getElementById("loading-state").innerHTML = "";
+      const msg = document.createElement("p");
+      msg.className = "mb-4";
+      msg.textContent = "Taking longer than expected to load your session.";
+      const retryBtn = document.createElement("button");
+      retryBtn.className = "font-label-mono text-label-mono text-primary uppercase underline";
+      retryBtn.textContent = "Retry";
+      retryBtn.addEventListener("click", () => window.location.reload());
+      document.getElementById("loading-state").appendChild(msg);
+      document.getElementById("loading-state").appendChild(retryBtn);
+    }
+  }
+
+  startExpensesPage();
+</script>
+</body>
+</html>
