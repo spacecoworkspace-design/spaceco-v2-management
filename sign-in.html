@@ -155,7 +155,14 @@
       return;
     }
     pendingFactorId = enroll.factorId;
-    document.getElementById("qr-container").innerHTML = enroll.qrSvg;
+    const qrContainer = document.getElementById("qr-container");
+    qrContainer.innerHTML = "";
+    const qrImg = document.createElement("img");
+    qrImg.src = enroll.qrSvg;
+    qrImg.alt = "Authenticator QR code";
+    qrImg.width = 180;
+    qrImg.height = 180;
+    qrContainer.appendChild(qrImg);
     showView("enroll-view");
   });
 
