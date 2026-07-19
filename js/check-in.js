@@ -1,5 +1,22 @@
 // Client lookup + check-in submission logic for check-in.html.
 
+// Trial Client: lets staff quickly test the check-in flow without typing real data. Trial
+// check-ins are tagged with this exact name/phone so "Clear Trial" can find and remove them in
+// bulk without touching anything else -- goes through the same soft-delete path as everything
+// else (recoverable from the Recycle Bin if cleared by mistake).
+const TRIAL_GUEST_NAME = "TRIAL Test Guest";
+const TRIAL_GUEST_PHONE = "00000000000";
+
+async function clearTrialCheckIns(supabase) {
+  const { data, error } = await supabase.from("check_ins").select("id").eq("guest_name", TRIAL_GUEST_NAME);
+  if (error) return { error: error.message };
+  const ids = (data || []).map(r => r.id);
+  for (const id of ids) {
+    await supabase.rpc("soft_delete_row", { p_table: "check_ins", p_id: id });
+  }
+  return { cleared: ids.length };
+}
+
 const ROOMS = [
   { label: "Room 4 Persons (1)", key: "room4-1" },
   { label: "Room 4 Persons (2)", key: "room4-2" },

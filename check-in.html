@@ -67,11 +67,19 @@
       <span class="font-label-mono text-label-mono uppercase text-secondary mb-2 block">Reception</span>
       <h1 class="font-display-lg text-primary">New Session</h1>
     </div>
-    <div class="inline-flex p-1 bg-surface-container border border-outline-variant">
-      <button class="px-6 py-2 bg-primary text-white font-label-mono text-label-mono uppercase transition-all" id="lookupModeBtn">Client Lookup</button>
-      <button class="px-6 py-2 text-on-surface-variant font-label-mono text-label-mono uppercase hover:bg-surface-container" id="manualModeBtn">Manual Guest</button>
+    <div class="flex flex-col items-end gap-2">
+      <div class="inline-flex p-1 bg-surface-container border border-outline-variant">
+        <button class="px-6 py-2 bg-primary text-white font-label-mono text-label-mono uppercase transition-all" id="lookupModeBtn">Client Lookup</button>
+        <button class="px-6 py-2 text-on-surface-variant font-label-mono text-label-mono uppercase hover:bg-surface-container" id="manualModeBtn">Manual Guest</button>
+      </div>
+      <div class="flex gap-4">
+        <button id="trial-client-btn" class="font-label-mono text-[11px] uppercase text-on-surface-variant hover:text-primary underline">🧪 Trial Client</button>
+        <button id="clear-trial-btn" class="font-label-mono text-[11px] uppercase text-on-surface-variant hover:text-primary underline">🧹 Clear Trial</button>
+      </div>
     </div>
   </div>
+
+  <p id="trial-notice" class="hidden text-secondary font-label-mono text-[11px] uppercase mb-4"></p>
 
   <!-- LOOKUP MODE -->
   <section id="lookupView" class="relative mb-10">
@@ -185,6 +193,25 @@
 
   document.getElementById("lookupModeBtn").addEventListener("click", () => setMode("lookup"));
   document.getElementById("manualModeBtn").addEventListener("click", () => setMode("manual"));
+
+  document.getElementById("trial-client-btn").addEventListener("click", () => {
+    setMode("manual");
+    document.getElementById("guest-name").value = TRIAL_GUEST_NAME;
+    document.getElementById("guest-phone").value = TRIAL_GUEST_PHONE;
+    const notice = document.getElementById("trial-notice");
+    notice.textContent = "🧪 Trial client filled in — pick a room and check in to test!";
+    notice.classList.remove("hidden");
+  });
+
+  document.getElementById("clear-trial-btn").addEventListener("click", async () => {
+    const notice = document.getElementById("trial-notice");
+    notice.textContent = "Clearing trial data...";
+    notice.classList.remove("hidden");
+    const result = await clearTrialCheckIns(supabaseClient);
+    notice.textContent = result.error
+      ? "Failed to clear trial data: " + result.error
+      : `🧹 Cleared ${result.cleared} trial check-in(s).`;
+  });
 
   function renderRoomGrid() {
     const grid = document.getElementById("room-grid");
