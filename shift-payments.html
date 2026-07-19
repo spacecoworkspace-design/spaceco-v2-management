@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://mhoustvvwmwfovocwwna.supabase.co;"/>
+<meta name="referrer" content="strict-origin-when-cross-origin"/>
+<title>SPACECO | Shift Payments</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@100..900&family=JetBrains+Mono:wght@100..900&display=swap" rel="stylesheet"/>
+<script src="js/vendor/supabase-js.umd.js"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          background: "#fbf9f8", surface: "#fbf9f8", "surface-container": "#efeded",
+          "on-surface-variant": "#444748", primary: "#000000", secondary: "#775a19",
+          "secondary-container": "#fed488", "on-secondary-container": "#785a1a",
+          "outline-variant": "#c4c7c7", error: "#ba1a1a",
+        },
+        fontFamily: { "body-lg": ["Hanken Grotesk"], "body-md": ["Hanken Grotesk"], "headline-lg": ["Hanken Grotesk"], "display-lg": ["Hanken Grotesk"], "headline-md": ["Hanken Grotesk"], "label-mono": ["JetBrains Mono"] },
+        fontSize: {
+          "label-mono": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "500" }],
+          "body-lg": ["18px", { lineHeight: "28px", fontWeight: "400" }],
+          "headline-lg": ["30px", { lineHeight: "38px", letterSpacing: "-0.01em", fontWeight: "600" }],
+          "headline-md": ["22px", { lineHeight: "30px", fontWeight: "600" }],
+          "display-lg": ["36px", { lineHeight: "44px", letterSpacing: "-0.02em", fontWeight: "700" }],
+        },
+        spacing: { "margin-mobile": "24px", "stack-md": "24px", "stack-lg": "48px" },
+        borderRadius: { DEFAULT: "0px" },
+      },
+    },
+  };
+</script>
+<style>
+  body { font-family: 'Hanken Grotesk', sans-serif; }
+  .menu-item.selected { background-color: #fed488; border-color: #000; }
+</style>
+</head>
+<body class="bg-background text-on-surface-variant font-body-md min-h-screen">
+
+<header class="flex flex-wrap justify-between items-center px-margin-mobile h-16 w-full bg-surface border-b border-outline-variant sticky top-0 z-40 gap-4">
+  <div class="flex items-center gap-8">
+    <span class="font-headline-md text-primary tracking-tighter">SPACECO — SHIFT PAYMENTS</span>
+    <a href="check-in.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Check-In</a>
+    <a href="claims.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Claim Requests</a>
+    <a href="expenses.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Expenses</a>
+  </div>
+  <div class="flex items-center gap-4">
+    <span id="staff-name" class="font-label-mono text-label-mono uppercase"></span>
+    <button id="signout-btn" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Sign Out</button>
+  </div>
+</header>
+
+<div id="loading-state" class="py-24 text-center font-label-mono text-label-mono uppercase">Checking session...</div>
+
+<main class="hidden max-w-5xl mx-auto p-margin-mobile lg:p-12" id="main-content">
+  <span class="font-label-mono text-label-mono uppercase text-secondary mb-2 block">Daily financial summary per cashier</span>
+  <h1 class="font-display-lg text-primary mb-stack-md">Shift Payments</h1>
+
+  <div class="flex items-center gap-4 mb-stack-lg">
+    <label class="font-label-mono text-label-mono uppercase" for="date-input">Date</label>
+    <input id="date-input" type="date" class="bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none"/>
+  </div>
+
+  <h2 class="font-headline-md text-primary mb-4">Daily Summary</h2>
+  <div id="summary-cards" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-stack-lg"></div>
+  <p id="summary-empty" class="hidden font-label-mono text-label-mono uppercase text-on-surface-variant mb-stack-lg">No activity recorded for this date.</p>
+
+  <div class="border-t border-outline-variant pt-stack-lg mb-stack-lg">
+    <h2 class="font-headline-md text-primary mb-4">Log Drinks &amp; Snacks Order</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Cashier</label>
+        <select id="order-cashier" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none"></select>
+      </div>
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Client Name (optional)</label>
+        <input id="order-client" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none" type="text" placeholder="Walk-in"/>
+      </div>
+    </div>
+
+    <p class="font-label-mono text-[11px] uppercase text-on-surface-variant mb-2">Drinks</p>
+    <div id="drink-menu" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4"></div>
+    <p class="font-label-mono text-[11px] uppercase text-on-surface-variant mb-2">Snacks</p>
+    <div id="snack-menu" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4"></div>
+
+    <div class="flex items-end gap-3 mb-4">
+      <div class="flex-1">
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Custom Item</label>
+        <input id="custom-name" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none" type="text" placeholder="Description"/>
+      </div>
+      <div class="w-28">
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Price</label>
+        <input id="custom-price" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none" type="number" min="0" step="0.01"/>
+      </div>
+      <button id="add-custom-btn" class="border border-outline-variant py-2 px-4 font-label-mono text-label-mono uppercase hover:border-primary">+ Add</button>
+    </div>
+
+    <div id="order-items" class="mb-4"></div>
+    <p class="font-headline-md text-primary mb-4">Order Total: <span id="order-total">0</span> LE</p>
+
+    <div class="flex items-center gap-4 mb-4">
+      <label class="font-label-mono text-label-mono uppercase">Payment</label>
+      <select id="order-payment" class="bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none">
+        <option value="cash">Cash</option>
+        <option value="instapay">Instapay</option>
+      </select>
+    </div>
+    <p id="order-error" class="text-error hidden mb-4"></p>
+    <div class="flex gap-4">
+      <button id="save-order-btn" class="bg-primary text-white py-3 px-6 font-label-mono text-label-mono uppercase hover:opacity-90">Save Order</button>
+      <button id="clear-order-btn" class="border border-outline-variant py-3 px-6 font-label-mono text-label-mono uppercase hover:border-primary">Clear</button>
+    </div>
+  </div>
+
+  <div class="mb-stack-lg">
+    <h2 class="font-headline-md text-primary mb-4">Drinks &amp; Snacks Orders</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left">
+        <thead>
+          <tr class="border-b border-outline-variant font-label-mono text-[11px] uppercase text-on-surface-variant">
+            <th class="py-2 pr-4">Cashier</th>
+            <th class="py-2 pr-4">Client</th>
+            <th class="py-2 pr-4">Items</th>
+            <th class="py-2 pr-4">Total</th>
+            <th class="py-2 pr-4">Payment</th>
+            <th class="py-2 pr-4"></th>
+          </tr>
+        </thead>
+        <tbody id="orders-tbody"></tbody>
+      </table>
+      <p id="orders-empty" class="hidden font-label-mono text-label-mono uppercase text-on-surface-variant py-8 text-center">No orders logged for this date.</p>
+    </div>
+  </div>
+
+  <div class="border-t border-outline-variant pt-stack-lg mb-stack-lg">
+    <h2 class="font-headline-md text-primary mb-4">Add Manual Shift Entry</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Cashier</label>
+        <select id="shift-cashier" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none"></select>
+      </div>
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Cash (LE)</label>
+        <input id="shift-cash" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none" type="number" min="0" step="0.01"/>
+      </div>
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Instapay (LE)</label>
+        <input id="shift-instapay" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none" type="number" min="0" step="0.01"/>
+      </div>
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Other (LE)</label>
+        <input id="shift-other" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none" type="number" min="0" step="0.01"/>
+      </div>
+    </div>
+    <p id="shift-error" class="text-error hidden mb-4"></p>
+    <button id="add-shift-btn" class="bg-primary text-white py-3 px-6 font-label-mono text-label-mono uppercase hover:opacity-90">+ Add</button>
+  </div>
+
+  <div>
+    <h2 class="font-headline-md text-primary mb-4">Shift Payment Records</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left">
+        <thead>
+          <tr class="border-b border-outline-variant font-label-mono text-[11px] uppercase text-on-surface-variant">
+            <th class="py-2 pr-4">Cashier</th>
+            <th class="py-2 pr-4">Cash</th>
+            <th class="py-2 pr-4">Instapay</th>
+            <th class="py-2 pr-4">Other</th>
+            <th class="py-2 pr-4">Total</th>
+            <th class="py-2 pr-4"></th>
+          </tr>
+        </thead>
+        <tbody id="shift-tbody"></tbody>
+      </table>
+      <p id="shift-empty" class="hidden font-label-mono text-label-mono uppercase text-on-surface-variant py-8 text-center">No shift records for this date.</p>
+    </div>
+  </div>
+</main>
+
+<div id="error-state" class="hidden py-24 text-center">
+  <p class="text-error" id="error-text"></p>
+  <a href="sign-in.html" class="font-label-mono text-label-mono text-primary uppercase underline mt-4 inline-block">Sign In</a>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script src="js/staff-auth.js"></script>
+<script src="js/shift-payments.js"></script>
+<script>
+  const supabaseClient = window.getSpacecoClient();
+  let orderItems = [];
+
+  function fmtMoney(n) {
+    return Number(n || 0).toLocaleString() + " LE";
+  }
+
+  function todayLocal() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  const dateInput = document.getElementById("date-input");
+  dateInput.value = todayLocal();
+
+  function renderMenu(containerId, menu) {
+    const container = document.getElementById(containerId);
+    menu.forEach(item => {
+      const btn = document.createElement("button");
+      btn.className = "menu-item border border-outline-variant py-2 px-3 text-left hover:border-primary";
+      btn.innerHTML = `<span class="block font-body-md">${item.name}</span><span class="block font-label-mono text-[11px] text-on-surface-variant">${item.price} LE</span>`;
+      btn.addEventListener("click", () => {
+        orderItems.push({ name: item.name, price: item.price, qty: 1 });
+        renderOrderItems();
+      });
+      container.appendChild(btn);
+    });
+  }
+  renderMenu("drink-menu", DRINK_MENU);
+  renderMenu("snack-menu", SNACK_MENU);
+
+  document.getElementById("add-custom-btn").addEventListener("click", () => {
+    const name = document.getElementById("custom-name").value.trim();
+    const price = Number(document.getElementById("custom-price").value);
+    if (!name || !price || price <= 0) return;
+    orderItems.push({ name, price, qty: 1 });
+    document.getElementById("custom-name").value = "";
+    document.getElementById("custom-price").value = "";
+    renderOrderItems();
+  });
+
+  function renderOrderItems() {
+    const container = document.getElementById("order-items");
+    container.innerHTML = "";
+    let total = 0;
+    orderItems.forEach((item, idx) => {
+      total += item.price * item.qty;
+      const row = document.createElement("div");
+      row.className = "flex items-center justify-between py-1 font-label-mono text-label-mono";
+      row.innerHTML = `<span>${item.qty}x ${item.name} — ${item.price * item.qty} LE</span>`;
+      const removeBtn = document.createElement("button");
+      removeBtn.textContent = "Remove";
+      removeBtn.className = "text-error uppercase text-[11px] hover:underline";
+      removeBtn.addEventListener("click", () => {
+        orderItems.splice(idx, 1);
+        renderOrderItems();
+      });
+      row.appendChild(removeBtn);
+      container.appendChild(row);
+    });
+    document.getElementById("order-total").textContent = total;
+  }
+
+  document.getElementById("clear-order-btn").addEventListener("click", () => {
+    orderItems = [];
+    renderOrderItems();
+    document.getElementById("order-client").value = "";
+  });
+
+  document.getElementById("save-order-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("order-error");
+    errEl.classList.add("hidden");
+    if (!orderItems.length) {
+      errEl.textContent = "Add at least one item.";
+      errEl.classList.remove("hidden");
+      return;
+    }
+    const cashierName = document.getElementById("order-cashier").selectedOptions[0]?.textContent;
+    const clientName = document.getElementById("order-client").value.trim();
+    const paymentMethod = document.getElementById("order-payment").value;
+
+    const result = await logDrinkOrder(supabaseClient, { cashierName, clientName, items: orderItems, paymentMethod });
+    if (result.error) {
+      errEl.textContent = result.error;
+      errEl.classList.remove("hidden");
+      return;
+    }
+    orderItems = [];
+    renderOrderItems();
+    document.getElementById("order-client").value = "";
+    await refreshAll();
+  });
+
+  document.getElementById("add-shift-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("shift-error");
+    errEl.classList.add("hidden");
+    const cashierName = document.getElementById("shift-cashier").selectedOptions[0]?.textContent;
+    const cashTotal = Number(document.getElementById("shift-cash").value) || 0;
+    const instapayTotal = Number(document.getElementById("shift-instapay").value) || 0;
+    const otherTotal = Number(document.getElementById("shift-other").value) || 0;
+
+    if (!cashTotal && !instapayTotal && !otherTotal) {
+      errEl.textContent = "Enter at least one amount.";
+      errEl.classList.remove("hidden");
+      return;
+    }
+
+    const result = await addShiftPaymentRecord(supabaseClient, {
+      shiftDate: dateInput.value, cashierName, cashTotal, instapayTotal, otherTotal,
+    });
+    if (result.error) {
+      errEl.textContent = result.error;
+      errEl.classList.remove("hidden");
+      return;
+    }
+    document.getElementById("shift-cash").value = "";
+    document.getElementById("shift-instapay").value = "";
+    document.getElementById("shift-other").value = "";
+    await refreshAll();
+  });
+
+  async function refreshSummary() {
+    const result = await fetchDailySummary(supabaseClient, dateInput.value);
+    const container = document.getElementById("summary-cards");
+    container.innerHTML = "";
+    if (result.error || !result.summary.length) {
+      document.getElementById("summary-empty").classList.remove("hidden");
+      return;
+    }
+    document.getElementById("summary-empty").classList.add("hidden");
+    result.summary.forEach(r => {
+      const card = document.createElement("div");
+      card.className = "bg-surface border border-outline-variant p-4";
+      card.innerHTML = `
+        <h3 class="font-headline-md text-primary mb-2">${r.cashierName}</h3>
+        <div class="grid grid-cols-2 gap-2 font-label-mono text-[11px]">
+          <span>🚪 Rooms: ${fmtMoney(r.rooms)}</span>
+          <span>☕ Drinks: ${fmtMoney(r.drinks)}</span>
+          <span>💵 Cash: ${fmtMoney(r.cash)}</span>
+          <span>📱 Instapay: ${fmtMoney(r.instapay)}</span>
+        </div>
+        <p class="font-headline-md text-primary mt-2">Total: ${fmtMoney(r.grandTotal)}</p>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  async function refreshOrders() {
+    const result = await fetchDrinkOrders(supabaseClient, dateInput.value);
+    const tbody = document.getElementById("orders-tbody");
+    tbody.innerHTML = "";
+    if (result.error || !result.orders.length) {
+      document.getElementById("orders-empty").classList.remove("hidden");
+      return;
+    }
+    document.getElementById("orders-empty").classList.add("hidden");
+    result.orders.forEach(o => {
+      const tr = document.createElement("tr");
+      tr.className = "border-b border-outline-variant";
+      const itemsText = (o.items || []).map(i => `${i.qty}x ${i.name}`).join(", ");
+      tr.innerHTML = `
+        <td class="py-2 pr-4">${o.cashier_name || "-"}</td>
+        <td class="py-2 pr-4">${o.guest_client_name || "-"}</td>
+        <td class="py-2 pr-4">${itemsText}</td>
+        <td class="py-2 pr-4">${fmtMoney(o.total)}</td>
+        <td class="py-2 pr-4 uppercase">${o.payment_method || "-"}</td>
+        <td class="py-2 pr-4"></td>
+      `;
+      const delBtn = document.createElement("button");
+      delBtn.className = "font-label-mono text-[11px] uppercase text-error hover:underline";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", async () => {
+        if (!confirm("Delete this order?")) return;
+        const result = await deleteDrinkOrder(supabaseClient, o.id);
+        if (result.error) { alert(result.error); return; }
+        await refreshAll();
+      });
+      tr.lastElementChild.appendChild(delBtn);
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function refreshShiftRecords() {
+    const result = await fetchShiftPaymentRecords(supabaseClient, dateInput.value);
+    const tbody = document.getElementById("shift-tbody");
+    tbody.innerHTML = "";
+    if (result.error || !result.records.length) {
+      document.getElementById("shift-empty").classList.remove("hidden");
+      return;
+    }
+    document.getElementById("shift-empty").classList.add("hidden");
+    result.records.forEach(r => {
+      const total = (Number(r.cash_total) || 0) + (Number(r.instapay_total) || 0) + (Number(r.other_total) || 0);
+      const tr = document.createElement("tr");
+      tr.className = "border-b border-outline-variant";
+      tr.innerHTML = `
+        <td class="py-2 pr-4">${r.cashier_name || "-"}</td>
+        <td class="py-2 pr-4">${fmtMoney(r.cash_total)}</td>
+        <td class="py-2 pr-4">${fmtMoney(r.instapay_total)}</td>
+        <td class="py-2 pr-4">${fmtMoney(r.other_total)}</td>
+        <td class="py-2 pr-4">${fmtMoney(total)}</td>
+        <td class="py-2 pr-4"></td>
+      `;
+      const delBtn = document.createElement("button");
+      delBtn.className = "font-label-mono text-[11px] uppercase text-error hover:underline";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", async () => {
+        if (!confirm("Delete this shift record?")) return;
+        const result = await deleteShiftPaymentRecord(supabaseClient, r.id);
+        if (result.error) { alert(result.error); return; }
+        await refreshAll();
+      });
+      tr.lastElementChild.appendChild(delBtn);
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function refreshAll() {
+    await Promise.all([refreshSummary(), refreshOrders(), refreshShiftRecords()]);
+  }
+
+  dateInput.addEventListener("change", refreshAll);
+
+  document.getElementById("signout-btn").addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
+    window.location.href = "sign-in.html";
+  });
+
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+    ]);
+  }
+
+  async function startShiftPaymentsPage() {
+    try {
+      const guard = await withTimeout(requireStaffSession(supabaseClient), 8000);
+      if (guard.redirect) {
+        window.location.href = "sign-in.html";
+        return;
+      }
+      document.getElementById("staff-name").textContent = guard.staff.name;
+
+      const staffResult = await fetchActiveStaff(supabaseClient);
+      const staffList = staffResult.staff || [];
+      [document.getElementById("order-cashier"), document.getElementById("shift-cashier")].forEach(sel => {
+        staffList.forEach(s => sel.appendChild(new Option(s.name, s.id)));
+        const currentOpt = Array.from(sel.options).find(o => o.text === guard.staff.name);
+        if (currentOpt) sel.value = currentOpt.value;
+      });
+
+      document.getElementById("loading-state").classList.add("hidden");
+      document.getElementById("main-content").classList.remove("hidden");
+      await refreshAll();
+    } catch (e) {
+      document.getElementById("loading-state").innerHTML = "";
+      const msg = document.createElement("p");
+      msg.className = "mb-4";
+      msg.textContent = "Taking longer than expected to load your session.";
+      const retryBtn = document.createElement("button");
+      retryBtn.className = "font-label-mono text-label-mono text-primary uppercase underline";
+      retryBtn.textContent = "Retry";
+      retryBtn.addEventListener("click", () => window.location.reload());
+      document.getElementById("loading-state").appendChild(msg);
+      document.getElementById("loading-state").appendChild(retryBtn);
+    }
+  }
+
+  startShiftPaymentsPage();
+</script>
+</body>
+</html>
