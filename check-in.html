@@ -76,6 +76,15 @@
 </div>
 
 <main class="hidden max-w-4xl mx-auto p-margin-mobile lg:p-12" id="main-content">
+  <section class="mb-12">
+    <div class="flex items-center gap-3 mb-4">
+      <span class="w-2.5 h-2.5 rounded-full bg-secondary"></span>
+      <h2 class="font-headline-md text-primary">Active Sessions</h2>
+    </div>
+    <p id="active-sessions-empty" class="hidden font-label-mono text-label-mono uppercase text-on-surface-variant py-6">No guests currently inside.</p>
+    <div id="active-sessions-list" class="space-y-3"></div>
+  </section>
+
   <div class="mb-stack-lg flex flex-col lg:flex-row lg:items-end justify-between gap-6">
     <div>
       <span class="font-label-mono text-label-mono uppercase text-secondary mb-2 block">Reception</span>
@@ -146,6 +155,53 @@
   </button>
 </main>
 
+<!-- CHECKOUT MODAL -->
+<div id="checkout-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-background max-w-2xl w-full max-h-[90vh] overflow-y-auto p-8 relative">
+    <button id="checkout-close-btn" class="absolute top-4 right-4 text-2xl leading-none">✕</button>
+    <h2 class="font-headline-md text-primary mb-1">🏁 Guest Checkout</h2>
+    <p class="font-label-mono text-label-mono text-on-surface-variant mb-6" id="checkout-guest-info"></p>
+
+    <p class="font-label-mono text-[11px] uppercase text-on-surface-variant mb-2">Add Drinks &amp; Snacks to Tab</p>
+    <div id="checkout-drink-menu" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2"></div>
+    <div id="checkout-snack-menu" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4"></div>
+    <div id="checkout-order-items" class="mb-6"></div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Time Out</label>
+        <input id="checkout-time-out" type="time" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none"/>
+      </div>
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Discount (LE)</label>
+        <input id="checkout-discount" type="number" min="0" step="0.01" value="0" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none"/>
+      </div>
+      <div>
+        <label class="font-label-mono text-label-mono uppercase block mb-1">Payment Method</label>
+        <select id="checkout-payment" class="w-full bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none">
+          <option value="cash">Cash</option>
+          <option value="instapay">Instapay</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="bg-surface-container p-4 mb-4">
+      <p class="font-label-mono text-[11px] uppercase text-on-surface-variant mb-2">Receipt</p>
+      <div class="flex justify-between font-body-lg"><span>Room Cost</span><span id="checkout-room-cost">0 LE</span></div>
+      <div class="flex justify-between font-body-lg"><span>Drinks &amp; Snacks</span><span id="checkout-drinks-cost">0 LE</span></div>
+      <div class="flex justify-between font-headline-md text-primary mt-2 pt-2 border-t border-outline-variant"><span>Grand Total</span><span id="checkout-grand-total">0 LE</span></div>
+    </div>
+
+    <div class="mb-6">
+      <label class="font-label-mono text-label-mono uppercase block mb-1">How was the visit? (optional)</label>
+      <div id="checkout-rating" class="flex gap-1 text-2xl"></div>
+    </div>
+
+    <p id="checkout-error" class="text-error hidden mb-4"></p>
+    <button id="checkout-confirm-btn" class="w-full bg-secondary text-white py-4 font-headline-md font-bold uppercase tracking-widest hover:opacity-90">Confirm Checkout &amp; Save</button>
+  </div>
+</div>
+
 <div id="error-state" class="hidden py-24 text-center">
   <p class="text-error" id="error-text"></p>
   <a href="sign-in.html" class="font-label-mono text-label-mono text-primary uppercase underline mt-4 inline-block">Sign In</a>
@@ -155,6 +211,7 @@
 <script src="js/staff-auth.js"></script>
 <script src="js/check-in.js"></script>
 <script src="js/shared-space-packages.js"></script>
+<script src="js/shift-payments.js"></script>
 <script>
   const supabaseClient = window.getSpacecoClient();
   let selectedClient = null;
@@ -233,6 +290,8 @@
     ROOMS.forEach(r => {
       const card = el("div", "cursor-pointer border border-outline-variant p-6 hover:border-primary transition-all bg-surface");
       card.appendChild(el("h4", "font-body-lg font-bold", r.label));
+      const pricing = ROOM_PRICING[r.key];
+      if (pricing) card.appendChild(el("p", "font-label-mono text-[11px] text-on-surface-variant mt-1", pricing.label));
       card.dataset.roomKey = r.key;
       card.addEventListener("click", () => {
         document.querySelectorAll("#room-grid > div").forEach(c => c.classList.remove("border-primary", "bg-secondary-container"));
@@ -339,11 +398,178 @@
     document.getElementById("guest-phone").value = "";
     document.getElementById("guest-email").value = "";
     document.querySelectorAll("#room-grid > div").forEach(c => c.classList.remove("border-primary", "bg-secondary-container"));
+    await loadActiveSessions();
   });
 
   document.getElementById("signout-btn").addEventListener("click", async () => {
     await supabaseClient.auth.signOut();
     window.location.href = "sign-in.html";
+  });
+
+  // ============================================================
+  // ACTIVE SESSIONS + CHECKOUT
+  // ============================================================
+  let activeSessions = [];
+  let checkoutOrderItems = [];
+  let checkoutSession = null;
+  let checkoutRating = 0;
+
+  function formatElapsed(ms) {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  async function loadActiveSessions() {
+    const result = await fetchActiveSessions(supabaseClient);
+    activeSessions = result.sessions || [];
+    renderActiveSessions();
+  }
+
+  function renderActiveSessions() {
+    const list = document.getElementById("active-sessions-list");
+    list.innerHTML = "";
+    document.getElementById("active-sessions-empty").classList.toggle("hidden", activeSessions.length > 0);
+    activeSessions.forEach(s => {
+      const card = el("div", "flex items-center justify-between bg-surface border border-outline-variant p-4 flex-wrap gap-3");
+      const left = el("div");
+      left.appendChild(el("p", "font-body-lg font-bold", s.displayName + (s.is_guest ? " (Guest)" : "")));
+      left.appendChild(el("p", "font-label-mono text-[11px] text-on-surface-variant", `${s.room} · In: ${s.time_in.slice(0, 5)}`));
+      card.appendChild(left);
+
+      const right = el("div", "flex items-center gap-4");
+      const timer = el("span", "font-label-mono text-headline-md text-primary", "00:00:00");
+      timer.dataset.startedAt = s.startedAt.toISOString();
+      right.appendChild(timer);
+      const checkoutBtn = el("button", "bg-secondary text-white py-2 px-4 font-label-mono text-[11px] uppercase hover:opacity-90", "🏁 Checkout");
+      checkoutBtn.addEventListener("click", () => openCheckoutModal(s));
+      right.appendChild(checkoutBtn);
+      card.appendChild(right);
+      list.appendChild(card);
+    });
+  }
+
+  setInterval(() => {
+    document.querySelectorAll("#active-sessions-list [data-started-at]").forEach(node => {
+      const started = new Date(node.dataset.startedAt);
+      node.textContent = formatElapsed(Date.now() - started);
+    });
+  }, 1000);
+
+  function menuButton(item) {
+    const btn = el("button", "border border-outline-variant py-2 px-3 text-left hover:border-primary text-sm");
+    btn.innerHTML = `<span class="block">${item.name}</span><span class="block font-label-mono text-[11px] text-on-surface-variant">${item.price} LE</span>`;
+    btn.addEventListener("click", () => {
+      checkoutOrderItems.push({ name: item.name, price: item.price, qty: 1 });
+      renderCheckoutOrderItems();
+      updateReceiptTotals();
+    });
+    return btn;
+  }
+
+  function renderCheckoutMenu() {
+    const drinkContainer = document.getElementById("checkout-drink-menu");
+    const snackContainer = document.getElementById("checkout-snack-menu");
+    drinkContainer.innerHTML = "";
+    snackContainer.innerHTML = "";
+    DRINK_MENU.forEach(item => drinkContainer.appendChild(menuButton(item)));
+    SNACK_MENU.forEach(item => snackContainer.appendChild(menuButton(item)));
+  }
+
+  function renderCheckoutOrderItems() {
+    const container = document.getElementById("checkout-order-items");
+    container.innerHTML = "";
+    checkoutOrderItems.forEach((item, idx) => {
+      const row = el("div", "flex items-center justify-between py-1 font-label-mono text-label-mono");
+      row.innerHTML = `<span>${item.qty}x ${item.name} — ${item.price * item.qty} LE</span>`;
+      const removeBtn = el("button", "text-error uppercase text-[11px] hover:underline", "Remove");
+      removeBtn.addEventListener("click", () => {
+        checkoutOrderItems.splice(idx, 1);
+        renderCheckoutOrderItems();
+        updateReceiptTotals();
+      });
+      row.appendChild(removeBtn);
+      container.appendChild(row);
+    });
+  }
+
+  function updateReceiptTotals() {
+    if (!checkoutSession) return;
+    const timeOut = document.getElementById("checkout-time-out").value;
+    const discount = Number(document.getElementById("checkout-discount").value) || 0;
+    const endDate = combineDateTime(todayLocal(), timeOut);
+    const hours = hoursBetween(checkoutSession.startedAt, endDate);
+    const roomCost = Math.max(0, calculateRoomCost(checkoutSession.room_key, hours) - discount);
+    const drinksTotal = checkoutOrderItems.reduce((sum, i) => sum + i.price * i.qty, 0);
+    document.getElementById("checkout-room-cost").textContent = roomCost + " LE";
+    document.getElementById("checkout-drinks-cost").textContent = drinksTotal + " LE";
+    document.getElementById("checkout-grand-total").textContent = (roomCost + drinksTotal) + " LE";
+  }
+
+  function renderCheckoutRating() {
+    const container = document.getElementById("checkout-rating");
+    container.innerHTML = "";
+    for (let i = 1; i <= 5; i++) {
+      const star = el("button", "hover:scale-110 transition-transform", checkoutRating >= i ? "★" : "☆");
+      star.type = "button";
+      star.addEventListener("click", () => { checkoutRating = i; renderCheckoutRating(); });
+      container.appendChild(star);
+    }
+  }
+
+  function openCheckoutModal(session) {
+    checkoutSession = session;
+    checkoutOrderItems = [];
+    checkoutRating = 0;
+    document.getElementById("checkout-guest-info").textContent =
+      `${session.displayName} · ${session.room} · In: ${session.time_in.slice(0, 5)} · Cashier: ${session.cashier_name || "-"}`;
+    document.getElementById("checkout-time-out").value = nowLocal();
+    document.getElementById("checkout-discount").value = 0;
+    document.getElementById("checkout-payment").value = "cash";
+    document.getElementById("checkout-error").classList.add("hidden");
+    renderCheckoutMenu();
+    renderCheckoutOrderItems();
+    renderCheckoutRating();
+    updateReceiptTotals();
+    document.getElementById("checkout-modal").classList.remove("hidden");
+  }
+
+  document.getElementById("checkout-close-btn").addEventListener("click", () => {
+    document.getElementById("checkout-modal").classList.add("hidden");
+  });
+  document.getElementById("checkout-time-out").addEventListener("change", updateReceiptTotals);
+  document.getElementById("checkout-discount").addEventListener("input", updateReceiptTotals);
+
+  document.getElementById("checkout-confirm-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("checkout-error");
+    errEl.classList.add("hidden");
+    const btn = document.getElementById("checkout-confirm-btn");
+    btn.disabled = true;
+
+    const result = await submitCheckout(supabaseClient, {
+      checkInId: checkoutSession.id,
+      timeOut: document.getElementById("checkout-time-out").value,
+      cashier: currentStaff,
+      discount: document.getElementById("checkout-discount").value,
+      paymentMethod: document.getElementById("checkout-payment").value,
+      items: checkoutOrderItems,
+      rating: checkoutRating || null,
+      feedback: null,
+      startedAt: checkoutSession.startedAt,
+      roomKey: checkoutSession.room_key,
+    });
+
+    btn.disabled = false;
+    if (result.error) {
+      errEl.textContent = result.error;
+      errEl.classList.remove("hidden");
+      return;
+    }
+
+    document.getElementById("checkout-modal").classList.add("hidden");
+    await loadActiveSessions();
   });
 
   // Never hang silently on this screen: race the session guard against a timeout. If startup
@@ -368,6 +594,7 @@
       renderRoomGrid();
       document.getElementById("loading-state").classList.add("hidden");
       document.getElementById("main-content").classList.remove("hidden");
+      await loadActiveSessions();
     } catch (e) {
       document.getElementById("loading-state").innerHTML = "";
       const msg = document.createElement("p");
