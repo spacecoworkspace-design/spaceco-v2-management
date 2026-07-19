@@ -50,6 +50,7 @@
     <a href="expenses.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Expenses</a>
     <a href="shift-payments.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Shift Payments</a>
     <a href="top-performers.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Top Performers</a>
+    <a href="shared-space-packages.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Packages</a>
   </div>
   <div class="flex items-center gap-4">
     <span id="staff-name" class="font-label-mono text-label-mono uppercase"></span>
@@ -85,6 +86,9 @@
       <div id="verified-badge" class="hidden mt-4 p-4 bg-secondary-container text-on-secondary-container flex items-center justify-between">
         <span class="font-label-mono text-label-mono uppercase font-bold" id="verified-text"></span>
         <button id="clear-selection-btn" class="font-label-mono text-[11px] uppercase underline">Change</button>
+      </div>
+      <div id="package-badge" class="hidden mt-4 p-4 bg-surface-container">
+        <span class="font-label-mono text-label-mono uppercase font-bold" id="package-text"></span>
       </div>
     </div>
   </section>
@@ -127,11 +131,36 @@
 <script src="js/supabase-client.js"></script>
 <script src="js/staff-auth.js"></script>
 <script src="js/check-in.js"></script>
+<script src="js/shared-space-packages.js"></script>
 <script>
   const supabaseClient = window.getSpacecoClient();
   let selectedClient = null;
   let selectedRoom = null;
   let currentStaff = null;
+  let selectedPackage = null;
+
+  // Shows whether the selected client has a usable Shared Space package -- only relevant once
+  // both a verified client and the Shared Space room are picked. Purely informational until
+  // Start Session is pressed, which is when the day actually gets consumed.
+  async function updatePackageStatus() {
+    const badge = document.getElementById("package-badge");
+    selectedPackage = null;
+    if (!selectedClient || selectedRoom !== "sharedspace") {
+      badge.classList.add("hidden");
+      return;
+    }
+    const result = await getActivePackageForClient(supabaseClient, selectedClient.id);
+    if (result.error || !result.package) {
+      badge.classList.add("hidden");
+      return;
+    }
+    selectedPackage = result.package;
+    const remaining = selectedPackage.days_included == null
+      ? "Unlimited"
+      : `${selectedPackage.days_included - selectedPackage.days_used} of ${selectedPackage.days_included} check-ins left`;
+    document.getElementById("package-text").textContent = `☕ Active Shared Space Package — ${remaining}`;
+    badge.classList.remove("hidden");
+  }
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -147,7 +176,10 @@
     document.getElementById("lookupModeBtn").classList.toggle("text-white", mode === "lookup");
     document.getElementById("manualModeBtn").classList.toggle("bg-primary", mode === "manual");
     document.getElementById("manualModeBtn").classList.toggle("text-white", mode === "manual");
-    if (mode === "manual") selectedClient = null;
+    if (mode === "manual") {
+      selectedClient = null;
+      updatePackageStatus();
+    }
   }
 
   document.getElementById("lookupModeBtn").addEventListener("click", () => setMode("lookup"));
@@ -164,6 +196,7 @@
         document.querySelectorAll("#room-grid > div").forEach(c => c.classList.remove("border-primary", "bg-secondary-container"));
         card.classList.add("border-primary", "bg-secondary-container");
         selectedRoom = r.key;
+        updatePackageStatus();
       });
       grid.appendChild(card);
     });
@@ -196,11 +229,13 @@
     document.getElementById("lookup-results").innerHTML = "";
     document.getElementById("verified-text").textContent = `✅ Verified Client — ${c.name}, #${c.id}`;
     document.getElementById("verified-badge").classList.remove("hidden");
+    updatePackageStatus();
   }
 
   document.getElementById("clear-selection-btn").addEventListener("click", () => {
     selectedClient = null;
     document.getElementById("verified-badge").classList.add("hidden");
+    updatePackageStatus();
   });
 
   document.getElementById("start-session-btn").addEventListener("click", async () => {
@@ -245,11 +280,19 @@
       return;
     }
 
-    okEl.textContent = `Checked in — session #${result.checkInId}`;
+    let successText = `Checked in — session #${result.checkInId}`;
+    if (selectedPackage) {
+      const consumeResult = await consumePackageDay(supabaseClient, selectedPackage);
+      if (!consumeResult.error) successText += " — 1 Shared Space package day used";
+    }
+
+    okEl.textContent = successText;
     okEl.classList.remove("hidden");
     selectedClient = null;
     selectedRoom = null;
+    selectedPackage = null;
     document.getElementById("verified-badge").classList.add("hidden");
+    document.getElementById("package-badge").classList.add("hidden");
     document.getElementById("guest-name").value = "";
     document.getElementById("guest-phone").value = "";
     document.getElementById("guest-email").value = "";
