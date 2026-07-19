@@ -123,3 +123,11 @@ async function cancelPackage(supabase, id) {
   const { error } = await supabase.from("shared_space_packages").update({ status: "cancelled" }).eq("id", id);
   return error ? { error: error.message } : { ok: true };
 }
+
+// Distinct from cancel: cancel is a legitimate business status (client stopped using it), delete
+// is for correcting a mistake (e.g. wrong tier sold) -- goes to the recycle bin like everything
+// else, not treated as a real business event.
+async function deletePackage(supabase, id) {
+  const { error } = await supabase.rpc("soft_delete_row", { p_table: "shared_space_packages", p_id: id });
+  return error ? { error: error.message } : { ok: true };
+}

@@ -82,7 +82,7 @@ async function fetchDrinkOrders(supabase, date) {
 }
 
 async function deleteDrinkOrder(supabase, id) {
-  const { error } = await supabase.from("drink_orders").delete().eq("id", id);
+  const { error } = await supabase.rpc("soft_delete_row", { p_table: "drink_orders", p_id: id });
   return error ? { error: error.message } : { ok: true };
 }
 
@@ -107,6 +107,6 @@ async function fetchShiftPaymentRecords(supabase, date) {
 }
 
 async function deleteShiftPaymentRecord(supabase, id) {
-  const { error } = await supabase.from("shift_payments").delete().eq("id", id);
+  const { error } = await supabase.rpc("soft_delete_row", { p_table: "shift_payments", p_id: id });
   return error ? { error: error.message } : { ok: true };
 }

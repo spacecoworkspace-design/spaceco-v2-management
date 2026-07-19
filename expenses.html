@@ -47,6 +47,7 @@
     <a href="shift-payments.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Shift Payments</a>
     <a href="top-performers.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Top Performers</a>
     <a href="shared-space-packages.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Packages</a>
+    <a href="recycle-bin.html" class="text-lg text-on-surface-variant hover:text-primary" title="Recycle Bin" aria-label="Recycle Bin">🗑️</a>
   </div>
   <div class="flex items-center gap-4">
     <span id="staff-name" class="font-label-mono text-label-mono uppercase"></span>
@@ -124,7 +125,9 @@
     </div>
   </div>
 
-  <div class="flex items-center gap-4 mb-4">
+  <div class="flex items-center gap-4 mb-4 flex-wrap">
+    <label class="font-label-mono text-label-mono uppercase" for="month-filter">Month</label>
+    <input id="month-filter" type="month" class="bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none"/>
     <label class="font-label-mono text-label-mono uppercase" for="category-filter">Filter</label>
     <select id="category-filter" class="bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none">
       <option value="all">All Categories</option>
@@ -170,9 +173,11 @@
     document.getElementById("category-filter").appendChild(new Option(c, c));
   });
   document.getElementById("f-date").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("month-filter").value = currentMonthKey();
 
   async function refreshSummary() {
-    const result = await fetchExpensesSummary(supabaseClient);
+    const monthKey = document.getElementById("month-filter").value || currentMonthKey();
+    const result = await fetchExpensesSummary(supabaseClient, monthKey);
     if (result.error) return;
     document.getElementById("stat-total").textContent = fmtMoney(result.totalExpenses);
     document.getElementById("stat-cash").textContent = fmtMoney(result.paidCash);
@@ -201,7 +206,8 @@
 
   async function refreshTable() {
     const category = document.getElementById("category-filter").value;
-    const result = await fetchExpenses(supabaseClient, category);
+    const monthKey = document.getElementById("month-filter").value || currentMonthKey();
+    const result = await fetchExpenses(supabaseClient, category, monthKey);
     const tbody = document.getElementById("expenses-tbody");
     tbody.innerHTML = "";
     if (result.error || !result.expenses.length) {
@@ -243,6 +249,9 @@
     document.getElementById("add-form").classList.add("hidden");
   });
   document.getElementById("category-filter").addEventListener("change", refreshTable);
+  document.getElementById("month-filter").addEventListener("change", async () => {
+    await Promise.all([refreshSummary(), refreshTable()]);
+  });
 
   document.getElementById("save-expense-btn").addEventListener("click", async () => {
     const errEl = document.getElementById("form-error");

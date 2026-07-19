@@ -5,7 +5,7 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://mhoustvvwmwfovocwwna.supabase.co;"/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
-<title>SPACECO | Top Performers</title>
+<title>SPACECO | Recycle Bin</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@100..900&family=JetBrains+Mono:wght@100..900&display=swap" rel="stylesheet"/>
 <script src="js/vendor/supabase-js.umd.js"></script>
@@ -41,13 +41,13 @@
 
 <header class="flex flex-wrap justify-between items-center px-margin-mobile h-16 w-full bg-surface border-b border-outline-variant sticky top-0 z-40 gap-4">
   <div class="flex items-center gap-8">
-    <span class="font-headline-md text-primary tracking-tighter">SPACECO — TOP PERFORMERS</span>
+    <span class="font-headline-md text-primary tracking-tighter">SPACECO — RECYCLE BIN</span>
     <a href="check-in.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Check-In</a>
     <a href="claims.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Claim Requests</a>
     <a href="expenses.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Expenses</a>
     <a href="shift-payments.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Shift Payments</a>
+    <a href="top-performers.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Top Performers</a>
     <a href="shared-space-packages.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Packages</a>
-    <a href="recycle-bin.html" class="text-lg text-on-surface-variant hover:text-primary" title="Recycle Bin" aria-label="Recycle Bin">🗑️</a>
   </div>
   <div class="flex items-center gap-4">
     <span id="staff-name" class="font-label-mono text-label-mono uppercase"></span>
@@ -58,37 +58,25 @@
 <div id="loading-state" class="py-24 text-center font-label-mono text-label-mono uppercase">Checking session...</div>
 
 <main class="hidden max-w-4xl mx-auto p-margin-mobile lg:p-12" id="main-content">
-  <span class="font-label-mono text-label-mono uppercase text-secondary mb-2 block">Your most loyal and highest-spending clients</span>
-  <h1 class="font-display-lg text-primary mb-stack-lg">Top Performers</h1>
+  <span class="font-label-mono text-label-mono uppercase text-secondary mb-2 block">Deleted items are kept here for 30 days</span>
+  <h1 class="font-display-lg text-primary mb-stack-lg">Recycle Bin</h1>
 
-  <div class="flex flex-wrap items-center gap-4 mb-stack-lg">
-    <div class="flex border border-outline-variant">
-      <button id="mode-week" class="px-4 py-2 font-label-mono text-label-mono uppercase">Week</button>
-      <button id="mode-month" class="px-4 py-2 font-label-mono text-label-mono uppercase">Month</button>
-    </div>
-    <button id="prev-period" class="border border-outline-variant px-3 py-2 hover:border-primary">←</button>
-    <span id="period-label" class="font-headline-md text-primary"></span>
-    <button id="next-period" class="border border-outline-variant px-3 py-2 hover:border-primary">→</button>
+  <div class="flex items-center gap-4 mb-stack-lg">
+    <label class="font-label-mono text-label-mono uppercase" for="type-filter">Filter</label>
+    <select id="type-filter" class="bg-surface-container border-b-2 border-primary py-2 px-2 focus:ring-0 focus:outline-none">
+      <option value="all">All Types</option>
+      <option value="clients">Clients</option>
+      <option value="check_ins">Visits</option>
+      <option value="reservations">Reservations</option>
+      <option value="drink_orders">Drink Orders</option>
+      <option value="shift_payments">Shift Records</option>
+      <option value="expenses">Expenses</option>
+      <option value="shared_space_packages">Packages</option>
+    </select>
   </div>
 
-  <div class="overflow-x-auto">
-    <table class="w-full text-left">
-      <thead>
-        <tr class="border-b border-outline-variant font-label-mono text-[11px] uppercase text-on-surface-variant">
-          <th class="py-2 pr-4">Rank</th>
-          <th class="py-2 pr-4">Client</th>
-          <th class="py-2 pr-4">Phone</th>
-          <th class="py-2 pr-4">Visits</th>
-          <th class="py-2 pr-4">Total Spent</th>
-          <th class="py-2 pr-4">Avg / Visit</th>
-          <th class="py-2 pr-4">Fav Room</th>
-          <th class="py-2 pr-4">Last Visit</th>
-        </tr>
-      </thead>
-      <tbody id="ranked-tbody"></tbody>
-    </table>
-    <p id="empty-state" class="hidden font-label-mono text-label-mono uppercase text-on-surface-variant py-8 text-center">No check-ins in this period.</p>
-  </div>
+  <div id="items-list" class="space-y-4"></div>
+  <p id="empty-state" class="hidden font-label-mono text-label-mono uppercase text-on-surface-variant py-12 text-center">Recycle Bin is empty.</p>
 </main>
 
 <div id="error-state" class="hidden py-24 text-center">
@@ -98,59 +86,86 @@
 
 <script src="js/supabase-client.js"></script>
 <script src="js/staff-auth.js"></script>
-<script src="js/top-performers.js"></script>
+<script src="js/recycle-bin.js"></script>
 <script>
   const supabaseClient = window.getSpacecoClient();
-  let mode = "week";
-  let offset = 0;
+  let allItems = [];
 
-  const RANK_MEDAL = { 0: "🥇", 1: "🥈", 2: "🥉" };
-
-  function fmtMoney(n) {
-    return Number(n || 0).toLocaleString() + " LE";
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
   }
 
-  function setMode(newMode) {
-    mode = newMode;
-    offset = 0;
-    document.getElementById("mode-week").className = "px-4 py-2 font-label-mono text-label-mono uppercase " + (mode === "week" ? "bg-primary text-white" : "hover:bg-surface-container");
-    document.getElementById("mode-month").className = "px-4 py-2 font-label-mono text-label-mono uppercase " + (mode === "month" ? "bg-primary text-white" : "hover:bg-surface-container");
-    refresh();
+  function renderItem(item) {
+    const card = el("div", "bg-surface border border-outline-variant p-4 flex items-center justify-between gap-4");
+    const left = el("div");
+    left.appendChild(el("span", "font-label-mono text-[11px] uppercase text-secondary block mb-1", RECYCLE_TYPE_LABEL[item.table_name] || item.table_name));
+    left.appendChild(el("h3", "font-headline-md text-primary", item.title));
+    left.appendChild(el("p", "font-label-mono text-[11px] text-on-surface-variant mt-1", item.details));
+    const daysAgo = daysSinceDeleted(item.deleted_at);
+    const expiresIn = Math.max(0, 30 - daysAgo);
+    left.appendChild(el("p", "font-label-mono text-[11px] text-on-surface-variant mt-1", `Deleted ${daysAgo === 0 ? "today" : daysAgo + " day(s) ago"} · expires in ${expiresIn} day(s)`));
+    card.appendChild(left);
+
+    const actions = el("div", "flex gap-3 shrink-0");
+    const restoreBtn = el("button", "border border-outline-variant py-2 px-4 font-label-mono text-[11px] uppercase hover:border-primary", "Restore");
+    const purgeBtn = el("button", "border border-error text-error py-2 px-4 font-label-mono text-[11px] uppercase hover:bg-error hover:text-white", "Delete Forever");
+
+    restoreBtn.addEventListener("click", async () => {
+      restoreBtn.disabled = true;
+      purgeBtn.disabled = true;
+      const result = await restoreItem(supabaseClient, item.table_name, item.row_id);
+      if (result.error) {
+        alert(result.error);
+        restoreBtn.disabled = false;
+        purgeBtn.disabled = false;
+        return;
+      }
+      await loadItems();
+    });
+
+    purgeBtn.addEventListener("click", async () => {
+      if (!confirm("Permanently delete this? This cannot be undone.")) return;
+      restoreBtn.disabled = true;
+      purgeBtn.disabled = true;
+      const result = await purgeItem(supabaseClient, item.table_name, item.row_id);
+      if (result.error) {
+        alert(result.error);
+        restoreBtn.disabled = false;
+        purgeBtn.disabled = false;
+        return;
+      }
+      await loadItems();
+    });
+
+    actions.appendChild(restoreBtn);
+    actions.appendChild(purgeBtn);
+    card.appendChild(actions);
+    return card;
   }
 
-  document.getElementById("mode-week").addEventListener("click", () => setMode("week"));
-  document.getElementById("mode-month").addEventListener("click", () => setMode("month"));
-  document.getElementById("prev-period").addEventListener("click", () => { offset -= 1; refresh(); });
-  document.getElementById("next-period").addEventListener("click", () => { offset += 1; refresh(); });
-
-  async function refresh() {
-    const bounds = mode === "week" ? getWeekBounds(offset) : getMonthBounds(offset);
-    document.getElementById("period-label").textContent = bounds.label;
-
-    const result = await fetchTopPerformers(supabaseClient, bounds);
-    const tbody = document.getElementById("ranked-tbody");
-    tbody.innerHTML = "";
-    if (result.error || !result.ranked.length) {
+  function renderList() {
+    const filter = document.getElementById("type-filter").value;
+    const list = document.getElementById("items-list");
+    list.innerHTML = "";
+    const filtered = filter === "all" ? allItems : allItems.filter(i => i.table_name === filter);
+    if (!filtered.length) {
       document.getElementById("empty-state").classList.remove("hidden");
       return;
     }
     document.getElementById("empty-state").classList.add("hidden");
-    result.ranked.forEach((r, idx) => {
-      const tr = document.createElement("tr");
-      tr.className = "border-b border-outline-variant";
-      tr.innerHTML = `
-        <td class="py-2 pr-4">${RANK_MEDAL[idx] || "#" + (idx + 1)}</td>
-        <td class="py-2 pr-4">${r.name}${r.isMember ? "" : " (guest)"}</td>
-        <td class="py-2 pr-4">${r.phone || "-"}</td>
-        <td class="py-2 pr-4">${r.visits}</td>
-        <td class="py-2 pr-4">${fmtMoney(r.totalSpent)}</td>
-        <td class="py-2 pr-4">${fmtMoney(r.avgPerVisit)}</td>
-        <td class="py-2 pr-4">${r.favRoom}</td>
-        <td class="py-2 pr-4">${r.lastVisit}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+    filtered.forEach(item => list.appendChild(renderItem(item)));
   }
+
+  async function loadItems() {
+    const result = await fetchRecycleBin(supabaseClient);
+    allItems = result.error ? [] : result.items;
+    renderList();
+  }
+
+  document.getElementById("type-filter").addEventListener("change", renderList);
 
   document.getElementById("signout-btn").addEventListener("click", async () => {
     await supabaseClient.auth.signOut();
@@ -164,7 +179,7 @@
     ]);
   }
 
-  async function startTopPerformersPage() {
+  async function startRecycleBinPage() {
     try {
       const guard = await withTimeout(requireStaffSession(supabaseClient), 8000);
       if (guard.redirect) {
@@ -174,7 +189,7 @@
       document.getElementById("staff-name").textContent = guard.staff.name;
       document.getElementById("loading-state").classList.add("hidden");
       document.getElementById("main-content").classList.remove("hidden");
-      setMode("week");
+      await loadItems();
     } catch (e) {
       document.getElementById("loading-state").innerHTML = "";
       const msg = document.createElement("p");
@@ -189,7 +204,7 @@
     }
   }
 
-  startTopPerformersPage();
+  startRecycleBinPage();
 </script>
 </body>
 </html>

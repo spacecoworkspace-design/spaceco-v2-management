@@ -48,6 +48,7 @@
     <a href="expenses.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Expenses</a>
     <a href="shift-payments.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Shift Payments</a>
     <a href="top-performers.html" class="font-label-mono text-label-mono text-on-surface-variant uppercase hover:text-primary">Top Performers</a>
+    <a href="recycle-bin.html" class="text-lg text-on-surface-variant hover:text-primary" title="Recycle Bin" aria-label="Recycle Bin">🗑️</a>
   </div>
   <div class="flex items-center gap-4">
     <span id="staff-name" class="font-label-mono text-label-mono uppercase"></span>
@@ -300,7 +301,7 @@
       `;
       if (status === "active") {
         const cancelBtn = document.createElement("button");
-        cancelBtn.className = "font-label-mono text-[11px] uppercase text-error hover:underline";
+        cancelBtn.className = "font-label-mono text-[11px] uppercase text-error hover:underline mr-3";
         cancelBtn.textContent = "Cancel";
         cancelBtn.addEventListener("click", async () => {
           if (!confirm("Cancel this package?")) return;
@@ -310,6 +311,16 @@
         });
         tr.lastElementChild.appendChild(cancelBtn);
       }
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "font-label-mono text-[11px] uppercase text-error hover:underline";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", async () => {
+        if (!confirm("Delete this package? It'll go to the Recycle Bin.")) return;
+        const result = await deletePackage(supabaseClient, p.id);
+        if (result.error) { alert(result.error); return; }
+        await refreshAll();
+      });
+      tr.lastElementChild.appendChild(deleteBtn);
       tbody.appendChild(tr);
     });
   }

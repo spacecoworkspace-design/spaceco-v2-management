@@ -5,18 +5,27 @@ const EXPENSE_CATEGORIES = [
   "Food & Drinks Stock", "Other",
 ];
 
-function monthBounds(d = new Date()) {
-  const first = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  return { first, today };
+function currentMonthKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-async function fetchExpensesSummary(supabase) {
-  const { first, today } = monthBounds();
+// monthKey is "YYYY-MM". Returns the full calendar-month range, not just "up to today" --
+// browsing a past month should show that whole month, not a truncated one.
+function monthKeyBounds(monthKey) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const first = `${monthKey}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const last = `${monthKey}-${String(lastDay).padStart(2, "0")}`;
+  return { first, last };
+}
+
+async function fetchExpensesSummary(supabase, monthKey = currentMonthKey()) {
+  const { first, last } = monthKeyBounds(monthKey);
 
   const [expensesRes, checkInsRes] = await Promise.all([
-    supabase.from("expenses").select("amount, category, payment_method").gte("expense_date", first).lte("expense_date", today),
-    supabase.from("check_ins").select("cost").gte("visit_date", first).lte("visit_date", today),
+    supabase.from("expenses").select("amount, category, payment_method").gte("expense_date", first).lte("expense_date", last),
+    supabase.from("check_ins").select("cost").gte("visit_date", first).lte("visit_date", last),
   ]);
 
   if (expensesRes.error) return { error: expensesRes.error.message };
@@ -41,8 +50,11 @@ async function fetchExpensesSummary(supabase) {
   };
 }
 
-async function fetchExpenses(supabase, category) {
+async function fetchExpenses(supabase, category, monthKey = currentMonthKey()) {
+  const { first, last } = monthKeyBounds(monthKey);
   let query = supabase.from("expenses").select("id, expense_date, description, category, amount, payment_method, notes")
+    .gte("expense_date", first)
+    .lte("expense_date", last)
     .order("expense_date", { ascending: false })
     .order("id", { ascending: false });
   if (category && category !== "all") query = query.eq("category", category);
@@ -61,6 +73,6 @@ async function addExpense(supabase, { description, category, amount, paidFrom, n
 }
 
 async function deleteExpense(supabase, id) {
-  const { error } = await supabase.from("expenses").delete().eq("id", id);
+  const { error } = await supabase.rpc("soft_delete_row", { p_table: "expenses", p_id: id });
   return error ? { error: error.message } : { ok: true };
 }
